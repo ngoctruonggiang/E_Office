@@ -1,0 +1,66 @@
+// ─────────────────────────────────────────────────────────────
+// Organization tree + membership.
+//
+// The structure is a self-referential tree (parent/children). Membership is
+// PER-NODE: OrganizationMember.organizationId can reference ANY node. Membership
+// rolls up toward the root — a member of a leaf node is implicitly a member of
+// every ancestor, so selecting a node shows the members of its whole subtree.
+// `rootId` is denormalized (== id for a root) so we can fetch a whole tree and
+// authorize by root in one query.
+//
+// Permission axes:
+//   User.role               → system permission  ("admin" | "user")
+//   OrganizationMember.role → org permission      ("manager" | "member")
+// A "manager" of a root manages that root and everything beneath it.
+// ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id   String @id @default(uuid())
+  name String
+
+  // company | department | group | ...
+  type String @default("company")
+
+  // Tree structure.
+  parentId String?
+  parent   Organization?  @relation("OrganizationTree", fields: [parentId], references: [id])
+  children Organization[] @relation("OrganizationTree")
+
+  // Top ancestor of this node; equals `id` for a root. Lets us query an entire
+  // tree (where rootId = X) and authorize by root without walking parents.
+  rootId String
+
+  // Node creator (usually an admin).
+  createdById String?
+  createdBy   User?   @relation("OrganizationCreator", fields: [createdById], references: [id])
+
+  members OrganizationMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([rootId])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id String @id @default(uuid())
+
+  userId String
+  // Any node in the tree (leaf or internal). Membership rolls up to ancestors.
+  organizationId String
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Org permission within this company: "manager" | "member".
+  role     String  @default("member")
+  isActive Boolean @default(true)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("organization_members")
+}

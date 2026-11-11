@@ -1,0 +1,2 @@
+# Shell scripts must stay LF so they run on the Linux CI/deploy host.
+*.sh text eol=lf

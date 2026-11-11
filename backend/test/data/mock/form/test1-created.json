@@ -1,0 +1,55 @@
+{
+  "name": "User Registration Form",
+  "fields": [
+    {
+      "key": "fullName",
+      "label": "Full Name",
+      "type": "TEXT",
+      "required": true,
+      "defaultValue": "Nguyen Van A",
+      "maxLength": 100,
+      "placeholder": "Enter your full name",
+      "min": 0,
+      "max": 0,
+      "selectMode": "SINGLE",
+      "options": [],
+      "validations": []
+    },
+    {
+      "key": "emailAddress",
+      "label": "Email Address",
+      "type": "TEXT",
+      "required": true,
+      "defaultValue": "",
+      "maxLength": 255,
+      "placeholder": "example@domain.com",
+      "min": 0,
+      "max": 0,
+      "selectMode": "SINGLE",
+      "options": [],
+      "validations": [
+        {
+          "type": "EMAIL",
+          "regex": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        }
+      ]
+    },
+    {
+      "key": "userRole",
+      "label": "Account Type",
+      "type": "TEXT",
+      "required": false,
+      "defaultValue": "student",
+      "maxLength": 0,
+      "placeholder": "Select a role",
+      "min": 0,
+      "max": 0,
+      "selectMode": "SINGLE",
+      "options": [
+        { "label": "Student", "value": "student" },
+        { "label": "Instructor", "value": "instructor" }
+      ],
+      "validations": []
+    }
+  ]
+}

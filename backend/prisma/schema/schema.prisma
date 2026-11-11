@@ -1,0 +1,53 @@
+// ─────────────────────────────────────────────────────────────
+// Prisma schema (multi-file: prisma/schema/*.prisma)
+//
+// Datasource: PostgreSQL (dev + prod). The form/flow models use native
+// enums and Json, which require Postgres — see DEV setup in README/.env
+// and docker-compose.dev.yml (postgres service).
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  // Role kept as a plain string ("user" | "admin") for simplicity.
+  role         String   @default("user")
+  isActive     Boolean  @default(true)
+  // Reusable online-signature, edited on the profile page. The image is a data
+  // URL (PNG/JPEG); the name is rendered cursive under the image when stamping.
+  signatureName  String?
+  signatureImage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // ── back-relations ─────────────────────────────────────────
+  createdForms    Form[]           @relation("FormCreator")
+  requests        FormResponse[]   @relation("RequestCreator")
+  requestViewers  RequestViewer[]
+  flowAssignments FlowAssignee[]
+  tasks           Task[]
+  documents       Document[]
+  signatureFields SignatureField[]
+  comments         RequestComment[]
+  commentReactions CommentReaction[]
+
+  // ── signing ────────────────────────────────────────────────
+  signingEnvelopes   SigningEnvelope[]  @relation("SigningEnvelopeOwner")
+  signingAssignments SigningRecipient[] @relation("SigningRecipientUser")
+
+  // ── organization ───────────────────────────────────────────
+  createdOrganizations Organization[]       @relation("OrganizationCreator")
+  organizationMembers  OrganizationMember[]
+
+  @@map("users")
+}

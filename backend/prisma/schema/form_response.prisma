@@ -1,0 +1,44 @@
+// ─────────────────────────────────────────────────────────────
+// A FormResponse is a REQUEST: one filled-in instance of a FormVersion.
+// Field values are stored EAV-style in FormResponseValue (see form.prisma)
+// so a single table serves every form category.
+// ─────────────────────────────────────────────────────────────
+
+enum RequestStatus {
+  DRAFT // being edited, not yet submitted to the approval flow
+  PENDING // submitted, approval flow running
+  REQUEST_CHANGES // an approver asked for changes; back to the requestor to revise or resubmit
+  APPROVED // flow finished, all steps approved
+  REJECTED // an approver rejected
+  CANCELLED // creator cancelled
+}
+
+model FormResponse {
+  id            String        @id @default(uuid())
+  formVersionId String
+  createdById   String
+  status        RequestStatus @default(DRAFT)
+
+  // Clone lineage (clone-reserve / clone-reset both set this).
+  clonedFromId String?
+  // How this request was cloned from its parent: "reset" | "reserve" | null.
+  cloneMode    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  formVersion FormVersion   @relation(fields: [formVersionId], references: [id])
+  createdBy   User          @relation("RequestCreator", fields: [createdById], references: [id])
+  clonedFrom  FormResponse? @relation("RequestClone", fields: [clonedFromId], references: [id])
+  clones      FormResponse[] @relation("RequestClone")
+
+  values          FormResponseValue[]
+  documents       RequestDocument[]
+  viewers         RequestViewer[]
+  flowInstance    FlowInstance?
+  signatureFields SignatureField[]
+  comments        RequestComment[]
+
+  @@index([createdById])
+  @@index([status])
+}

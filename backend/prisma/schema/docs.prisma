@@ -1,0 +1,30 @@
+enum DocumentType {
+  NORMAL
+  PRIMARY_SIGNED
+}
+
+model Document {
+  id          String       @id @default(uuid())
+  name        String
+  filePath    String       // local path (sau này thay S3, GCS)
+  mimeType    String?
+  size        Int?
+  type        DocumentType @default(NORMAL)
+  createdById String
+
+  // Soft delete: hidden from normal queries; admin can hard-delete.
+  deletedFlag Boolean   @default(false)
+  deletedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  requestLinks       RequestDocument[]
+  signatureFields    SignatureField[]
+  commentAttachments CommentAttachment[]
+
+  @@index([createdById])
+  @@index([deletedFlag])
+}

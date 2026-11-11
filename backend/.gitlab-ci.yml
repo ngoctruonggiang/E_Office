@@ -1,0 +1,296 @@
+# ═══════════════════════════════════════════════════════════════
+# gafood BACKEND (NestJS + Prisma) — GitLab CI/CD
+#
+# build  → build the Docker image, push to the GitLab Container Registry
+# test   → (placeholder) lint/unit hook
+# release→ tag <branch>-latest on staging/main
+# deploy → run on the host behind Traefik (staging auto, prod manual)
+#
+# A separate MANUAL `deploy_documenso` job brings up the Documenso signing
+# stack (app + dedicated Postgres + MinIO + Mailpit) via docker compose from
+# deploy/documenso/ (see the docker-compose deployment guide).
+#
+# Secrets use inline defaults so the pipeline runs out-of-the-box; override
+# ANY of them with a (masked) GitLab CI/CD variable of the same name.
+#   Settings → CI/CD → Variables.  Recommended to override before going live:
+#     DATABASE_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, DOCUMENSO_API_TOKEN
+#
+# Runner tags expected: build, test, release, host.
+# ═══════════════════════════════════════════════════════════════
+
+variables:
+  CONTAINER_NAME: $CI_PROJECT_NAME-$CI_COMMIT_REF_SLUG
+
+  # ── Database (managed Postgres). Override in CI/CD Variables. ──
+  DATABASE_URL: "postgresql://postgres:change-me@localhost:5432/eofficedb?schema=public"
+
+  # ── App ──
+  APP_PORT: "8080"
+  THROTTLE_TTL: "60"
+  THROTTLE_LIMIT: "1000"
+  JWT_ACCESS_TTL: "900"
+  JWT_REFRESH_TTL: "604800"
+  # Override these two with masked CI/CD variables in real environments.
+  JWT_ACCESS_SECRET: "change-me-access-secret"
+  JWT_REFRESH_SECRET: "change-me-refresh-secret"
+
+  # ── Document storage. Deployed environments store uploads in MinIO (`s3`);
+  # objects are keyed <STORAGE_REPO_NAME>/<requestorId>/<requestId>/<file>. ──
+  STORAGE_DRIVER: "s3"
+  STORAGE_REPO_NAME: "$CI_PROJECT_NAME"
+
+  # ── Documenso signing bridge (server-to-server over the localnet network) ──
+  # Container names below are created by deploy/documenso/compose.yml.
+  # The S3_* values double as the document storage credentials (same MinIO).
+  # DOCUMENSO_API_TOKEN is SHARED: deploy_documenso/seed-token.sh hashes this
+  # exact value into documenso-db, and the backend sends it as the Bearer token.
+  # Override it with a masked CI/CD variable (form: api_<random>).
+  DOCUMENSO_API_URL: "http://documenso-app:3000"
+  DOCUMENSO_API_TOKEN: "api_replace_me"
+  S3_ENDPOINT: "http://documenso-minio:9002"
+  S3_REGION: "us-east-1"
+  S3_BUCKET: "documenso"
+  S3_ACCESS_KEY_ID: "documenso"
+  S3_SECRET_ACCESS_KEY: "password"
+
+  # Frontend origins allowed by CORS, per environment.
+  CORS_ORIGINS_STAGING: "https://frontend-test.s2.ttpprojects.com"
+  CORS_ORIGINS_PRODUCTION: "https://frontend.s2.ttpprojects.com"
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "staging"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+before_script:
+  - |
+    if [ -n "$CI_COMMIT_BRANCH" ]; then
+      export TARGET_BRANCH=$CI_COMMIT_BRANCH
+    elif [ -n "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" ]; then
+      export TARGET_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
+    else
+      export TARGET_BRANCH=$CI_COMMIT_REF_SLUG
+    fi
+  - export CONTAINER_DEPLOY_IMAGE="$CI_REGISTRY_IMAGE:$TARGET_BRANCH-$CI_COMMIT_SHORT_SHA"
+  - export CONTAINER_RELEASE_IMAGE="$CI_REGISTRY_IMAGE:$TARGET_BRANCH-latest"
+  - echo "TARGET_BRANCH=$TARGET_BRANCH"
+  - echo "DEPLOY_IMAGE=$CONTAINER_DEPLOY_IMAGE"
+
+stages:
+  - build
+  - test
+  - release
+  - deploy
+
+build:
+  stage: build
+  image:
+    name: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: thedockerhost
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - build
+  script:
+    - docker -v
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $CONTAINER_DEPLOY_IMAGE .
+    - docker push $CONTAINER_DEPLOY_IMAGE
+    - docker logout $CI_REGISTRY
+
+test:
+  stage: test
+  tags:
+    - test
+  script:
+    - echo "testing..."
+
+release:
+  stage: release
+  image:
+    name: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: thedockerhost
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - release
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_DEPLOY_IMAGE
+    - docker tag $CONTAINER_DEPLOY_IMAGE $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+    - docker logout $CI_REGISTRY
+  dependencies:
+    - test
+
+deploy_staging:
+  stage: deploy
+  tags:
+    - host
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+  variables:
+    REDIS_CONTAINER: gafood-redis-staging
+    CORS_ORIGINS: "$CORS_ORIGINS_STAGING"
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_RELEASE_IMAGE
+    # Ensure a Redis instance for the auth/session/rate-limit module exists.
+    - |
+      if [ -z "$(docker ps -q -f name=^/${REDIS_CONTAINER}$)" ]; then
+        docker rm -f ${REDIS_CONTAINER} 2>/dev/null || true
+        docker run -d --name ${REDIS_CONTAINER} --network localnet --restart unless-stopped \
+          redis:7-alpine redis-server --appendonly yes
+      fi
+    - if docker inspect $CONTAINER_NAME &> /dev/null; then export IMAGEID=$(docker inspect --format='{{.Image}}' $CONTAINER_NAME); fi
+    - if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME -f; fi
+    - if docker images --no-trunc --quiet | grep $IMAGEID; then docker rmi $IMAGEID -f; fi
+    - echo "Deploying backend to staging..."
+    - >
+      docker run -d
+      -e NODE_ENV=development
+      -e PORT=$APP_PORT
+      -e DATABASE_URL="$DATABASE_URL"
+      -e REDIS_HOST=$REDIS_CONTAINER
+      -e REDIS_PORT=6379
+      -e REDIS_DB=0
+      -e JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET"
+      -e JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET"
+      -e JWT_ACCESS_TTL=$JWT_ACCESS_TTL
+      -e JWT_REFRESH_TTL=$JWT_REFRESH_TTL
+      -e THROTTLE_TTL=$THROTTLE_TTL
+      -e THROTTLE_LIMIT=$THROTTLE_LIMIT
+      -e CORS_ORIGINS="$CORS_ORIGINS"
+      -e STORAGE_DRIVER="$STORAGE_DRIVER"
+      -e STORAGE_REPO_NAME="$STORAGE_REPO_NAME"
+      -e DOCUMENSO_API_URL="$DOCUMENSO_API_URL"
+      -e DOCUMENSO_API_TOKEN="$DOCUMENSO_API_TOKEN"
+      -e S3_ENDPOINT="$S3_ENDPOINT"
+      -e S3_REGION="$S3_REGION"
+      -e S3_BUCKET="$S3_BUCKET"
+      -e S3_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
+      -e S3_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+      --name $CONTAINER_NAME
+      --network localnet
+      --restart unless-stopped
+      -l "traefik.enable=true"
+      -l "traefik.http.routers.backend-test.rule=Host(\`backend-test.s2.ttpprojects.com\`)"
+      -l "traefik.http.routers.backend-test.entrypoints=websecure"
+      -l "traefik.http.routers.backend-test.tls=true"
+      -l "traefik.http.routers.backend-test.tls.certresolver=godaddy"
+      -l "traefik.http.services.backend-test-Service.loadbalancer.server.port=$APP_PORT"
+      $CONTAINER_RELEASE_IMAGE
+    - docker logout $CI_REGISTRY
+  dependencies:
+    - release
+  environment:
+    name: staging
+
+deploy_production:
+  stage: deploy
+  tags:
+    - host
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      # when: manual
+  variables:
+    REDIS_CONTAINER: gafood-redis-production
+    CORS_ORIGINS: "$CORS_ORIGINS_PRODUCTION"
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_RELEASE_IMAGE
+    - |
+      if [ -z "$(docker ps -q -f name=^/${REDIS_CONTAINER}$)" ]; then
+        docker rm -f ${REDIS_CONTAINER} 2>/dev/null || true
+        docker run -d --name ${REDIS_CONTAINER} --network localnet --restart unless-stopped \
+          redis:7-alpine redis-server --appendonly yes
+      fi
+    - if docker inspect $CONTAINER_NAME &> /dev/null; then export IMAGEID=$(docker inspect --format='{{.Image}}' $CONTAINER_NAME); fi
+    - if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME -f; fi
+    - if docker images --no-trunc --quiet | grep $IMAGEID; then docker rmi $IMAGEID -f; fi
+    - echo "Deploying backend to production..."
+    - >
+      docker run -d
+      -e NODE_ENV=production
+      -e PORT=$APP_PORT
+      -e DATABASE_URL="$DATABASE_URL"
+      -e REDIS_HOST=$REDIS_CONTAINER
+      -e REDIS_PORT=6379
+      -e REDIS_DB=0
+      -e JWT_ACCESS_SECRET="$JWT_ACCESS_SECRET"
+      -e JWT_REFRESH_SECRET="$JWT_REFRESH_SECRET"
+      -e JWT_ACCESS_TTL=$JWT_ACCESS_TTL
+      -e JWT_REFRESH_TTL=$JWT_REFRESH_TTL
+      -e THROTTLE_TTL=$THROTTLE_TTL
+      -e THROTTLE_LIMIT=$THROTTLE_LIMIT
+      -e CORS_ORIGINS="$CORS_ORIGINS"
+      -e STORAGE_DRIVER="$STORAGE_DRIVER"
+      -e STORAGE_REPO_NAME="$STORAGE_REPO_NAME"
+      -e DOCUMENSO_API_URL="$DOCUMENSO_API_URL"
+      -e DOCUMENSO_API_TOKEN="$DOCUMENSO_API_TOKEN"
+      -e S3_ENDPOINT="$S3_ENDPOINT"
+      -e S3_REGION="$S3_REGION"
+      -e S3_BUCKET="$S3_BUCKET"
+      -e S3_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
+      -e S3_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+      --name $CONTAINER_NAME
+      --network localnet
+      --restart unless-stopped
+      -l "traefik.enable=true"
+      -l "traefik.http.routers.backend.rule=Host(\`backend.s2.ttpprojects.com\`)"
+      -l "traefik.http.routers.backend.entrypoints=websecure"
+      -l "traefik.http.routers.backend.tls=true"
+      -l "traefik.http.routers.backend.tls.certresolver=godaddy"
+      -l "traefik.http.services.backend-Service.loadbalancer.server.port=$APP_PORT"
+      $CONTAINER_RELEASE_IMAGE
+    - docker logout $CI_REGISTRY
+  dependencies:
+    - release
+  environment:
+    name: production
+
+# ───────────────────────────────────────────────────────────────
+# Documenso signing server — manual deploy via docker compose. The backend
+# reaches the app + MinIO internally over `localnet` (documenso-app:3000,
+# documenso-minio:9002); Traefik publishes the signing page on DOCUMENSO_HOST
+# and MinIO on DOCUMENSO_FILES_HOST so signers' browsers can reach them. Brings
+# up the documenso app + a dedicated Postgres + MinIO (S3). No email/SMTP server.
+#
+# Required CI/CD variables (masked): NEXTAUTH_SECRET, NEXT_PRIVATE_ENCRYPTION_KEY,
+# NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY, DOCUMENSO_API_TOKEN (api_<random>,
+# SHARED with the backend). Override DOCUMENSO_HOST / DOCUMENSO_FILES_HOST if the
+# defaults don't fit. For real digital signatures also set
+# NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS (+ _PASSPHRASE) — see README.
+#
+# After `compose up`, seed-token.sh provisions DOCUMENSO_API_TOKEN directly into
+# documenso-db (no UI needed) so the backend can authenticate.
+# ───────────────────────────────────────────────────────────────
+deploy_documenso:
+  stage: deploy
+  tags:
+    - host
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "staging"
+  script:
+    - cd deploy/documenso
+    - docker network inspect localnet >/dev/null 2>&1 || docker network create localnet
+    - docker compose --env-file documenso.env pull
+    - docker compose --env-file documenso.env up -d
+    - docker compose --env-file documenso.env ps
+    # Export POSTGRES_USER/DB from the env file for the seed (DOCUMENSO_API_TOKEN
+    # comes from the masked CI/CD variable and is intentionally NOT in the file).
+    - set -a; . ./documenso.env; set +a
+    - bash seed-token.sh
+  environment:
+    name: documenso

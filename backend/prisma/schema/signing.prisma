@@ -1,0 +1,100 @@
+// ─────────────────────────────────────────────────────────────
+// Online signing — bridge to the Documenso signing service.
+//
+// gafood owns the signing *state* (envelopes, recipients, field
+// positions, status) and acts as the auth bridge: it holds a single
+// Documenso API token and performs all Documenso v1 API calls
+// server-side. The actual PDFs live in MinIO/S3 (shared with Documenso);
+// we only keep the object key here.
+// ─────────────────────────────────────────────────────────────
+
+enum SigningEnvelopeStatus {
+  DRAFT // created, recipients/fields being added by the owner
+  PENDING // sent to Documenso, awaiting signatures
+  COMPLETED // every recipient has signed
+}
+
+enum SigningRecipientStatus {
+  NOT_SIGNED
+  SIGNED
+}
+
+/// An owner's signing request over one uploaded PDF.
+model SigningEnvelope {
+  id    String @id @default(uuid())
+  title String
+
+  // Documenso linkage.
+  documensoDocumentId Int    @unique
+  // S3/MinIO object key of the original uploaded PDF (bucket is config).
+  bucketKey           String
+
+  status SigningEnvelopeStatus @default(DRAFT)
+
+  ownerId String
+  owner   User   @relation("SigningEnvelopeOwner", fields: [ownerId], references: [id])
+
+  recipients SigningRecipient[]
+  fields     SigningField[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@map("signing_envelopes")
+}
+
+/// A gafood user assigned to sign an envelope, mapped to a Documenso recipient.
+model SigningRecipient {
+  id String @id @default(uuid())
+
+  envelopeId String
+  envelope   SigningEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  // The gafood user who must sign.
+  userId String
+  user   User   @relation("SigningRecipientUser", fields: [userId], references: [id])
+
+  // Documenso linkage + the public signing page link.
+  documensoRecipientId Int
+  email                String
+  name                 String
+  token                String
+  signingUrl           String
+
+  status   SigningRecipientStatus @default(NOT_SIGNED)
+  signedAt DateTime?
+
+  fields SigningField[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([envelopeId, userId])
+  @@index([userId])
+  @@map("signing_recipients")
+}
+
+/// A signature placement on the PDF (page-relative percentages, 0–100).
+model SigningField {
+  id String @id @default(uuid())
+
+  envelopeId String
+  envelope   SigningEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  recipientId String
+  recipient   SigningRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  documensoFieldId Int
+
+  page   Int
+  x      Float
+  y      Float
+  width  Float
+  height Float
+
+  createdAt DateTime @default(now())
+
+  @@index([envelopeId])
+  @@map("signing_fields")
+}

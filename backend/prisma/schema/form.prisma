@@ -1,0 +1,101 @@
+enum FieldType {
+  TEXT
+  DATE
+  NUMBER
+  SELECT
+}
+
+enum SelectMode {
+  SINGLE
+  MULTIPLE
+}
+
+enum ValidationType {
+  EMAIL
+  PHONE
+  REGEX
+}
+
+model Form {
+  id          String   @id @default(uuid())
+  name        String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy User @relation("FormCreator", fields: [createdById], references: [id])
+
+  versions FormVersion[]
+}
+
+model FormResponseValue {
+  id         String @id @default(uuid())
+  responseId String
+  fieldKey   String
+  value      Json
+
+  response FormResponse @relation(fields: [responseId], references: [id])
+
+  // One value per field per response (EAV) — enables upsert on update.
+  @@unique([responseId, fieldKey])
+}
+
+model FormVersion {
+  id        String   @id @default(uuid())
+  formId    String
+  version   Int
+  createdAt DateTime @default(now())
+
+  form      Form           @relation(fields: [formId], references: [id])
+  fields    FormField[]
+  responses FormResponse[]
+
+  @@unique([formId, version])
+}
+
+model FormField {
+  id            String    @id @default(uuid())
+  formVersionId String
+  key           String
+  label         String
+  type          FieldType
+  required      Boolean   @default(false)
+
+  // common
+  defaultValue Json?
+
+  // TEXT
+  maxLength   Int?    @default(250)
+  placeholder String?
+
+  // NUMBER
+  min Float?
+  max Float?
+
+  // SELECT
+  selectMode SelectMode?
+
+  formVersion FormVersion @relation(fields: [formVersionId], references: [id])
+
+  validations FieldValidation[]
+  options     FieldOption[]
+
+  @@unique([formVersionId, key])
+}
+
+model FieldOption {
+  id      String @id @default(uuid())
+  fieldId String
+  label   String
+  value   String
+
+  field FormField @relation(fields: [fieldId], references: [id])
+}
+
+model FieldValidation {
+  id      String         @id @default(uuid())
+  fieldId String
+  type    ValidationType
+  regex   String? // dùng khi type = REGEX
+
+  field FormField @relation(fields: [fieldId], references: [id])
+}

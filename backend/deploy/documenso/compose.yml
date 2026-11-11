@@ -1,0 +1,141 @@
+# ─────────────────────────────────────────────────────────────
+# Documenso signing server (deployed by the `deploy_documenso` CI job).
+#
+# All values are interpolated from documenso.env (passed with --env-file by
+# the pipeline). Any matching GitLab CI/CD variable present in the job's shell
+# environment overrides the file value, so secrets never need to live in git.
+#
+# Network model:
+#   - `localnet` (external, shared with gafood backend + Traefik). The backend
+#     reaches Documenso server-to-server by container name (documenso-app:3000,
+#     documenso-minio:9002) — these never go through the internet.
+#   - `internal` for the private Postgres.
+#   - Signers are humans whose browsers are NOT on the Docker network, so the
+#     signing page must be reachable via a real URL. Traefik publishes:
+#       * ${DOCUMENSO_HOST}        → documenso-app  (the signing page)
+#       * ${DOCUMENSO_FILES_HOST}  → documenso-minio (the PDF bytes; the signer's
+#                                    browser fetches them via presigned URL)
+#     These are public hostnames, protected by: signup disabled, unguessable
+#     per-recipient signing tokens, and the API requiring the Bearer token. To
+#     restrict further, add a Traefik IP-allowlist middleware (one label).
+# ─────────────────────────────────────────────────────────────
+name: documenso
+
+services:
+  database:
+    image: postgres:15
+    container_name: documenso-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-documenso}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-documenso}
+      - POSTGRES_DB=${POSTGRES_DB:-documenso}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-documenso}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - database:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  minio:
+    image: minio/minio
+    container_name: documenso-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID:-documenso}
+      MINIO_ROOT_PASSWORD: ${NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY:-password}
+    entrypoint: sh
+    command: -c 'mkdir -p /data/${NEXT_PRIVATE_UPLOAD_BUCKET:-documenso} && minio server /data --console-address ":9001" --address ":9002"'
+    volumes:
+      - minio:/data
+    networks:
+      - internal
+      - localnet
+    # Exposed via Traefik so the signer's browser can fetch the PDF from the
+    # presigned URL (NEXT_PRIVATE_UPLOAD_ENDPOINT points at DOCUMENSO_FILES_HOST).
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.documenso-files.rule=Host(`${DOCUMENSO_FILES_HOST}`)"
+      - "traefik.http.routers.documenso-files.entrypoints=websecure"
+      - "traefik.http.routers.documenso-files.tls=true"
+      - "traefik.http.routers.documenso-files.tls.certresolver=godaddy"
+      - "traefik.http.services.documenso-files-Service.loadbalancer.server.port=9002"
+      # ── Optional IP allow-list (restrict who can reach the files) ──
+      # Uncomment both lines + set TRUSTED_IPS to your office/VPN CIDRs.
+      # NOTE: Traefik v3 uses `ipallowlist`; Traefik v2 uses `ipwhitelist`.
+      # - "traefik.http.routers.documenso-files.middlewares=documenso-files-ipallow"
+      # - "traefik.http.middlewares.documenso-files-ipallow.ipallowlist.sourcerange=${TRUSTED_IPS}"
+
+  documenso:
+    image: documenso/documenso:latest
+    container_name: documenso-app
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      - PORT=3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET}
+      - NEXT_PRIVATE_ENCRYPTION_KEY=${NEXT_PRIVATE_ENCRYPTION_KEY:?set NEXT_PRIVATE_ENCRYPTION_KEY}
+      - NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY=${NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY:?set NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY}
+      # Public-facing base URL (builds each recipient's signingUrl). Served by
+      # Traefik; the gafood FE surfaces the link to the signer.
+      - NEXT_PUBLIC_WEBAPP_URL=https://${DOCUMENSO_HOST}
+      - NEXT_PRIVATE_INTERNAL_WEBAPP_URL=http://localhost:3000
+      - NEXT_PRIVATE_DATABASE_URL=postgresql://${POSTGRES_USER:-documenso}:${POSTGRES_PASSWORD:-documenso}@database:5432/${POSTGRES_DB:-documenso}
+      - NEXT_PRIVATE_DIRECT_DATABASE_URL=postgresql://${POSTGRES_USER:-documenso}:${POSTGRES_PASSWORD:-documenso}@database:5432/${POSTGRES_DB:-documenso}
+      # Object storage (MinIO). The gafood backend shares this bucket.
+      # Endpoint is the public Traefik host (not the container name) so the
+      # presigned URLs Documenso hands the browser are reachable by the signer.
+      # The backend reaches the same MinIO over localnet (its own S3_ENDPOINT).
+      - NEXT_PUBLIC_UPLOAD_TRANSPORT=s3
+      - NEXT_PRIVATE_UPLOAD_ENDPOINT=https://${DOCUMENSO_FILES_HOST}
+      - NEXT_PRIVATE_UPLOAD_FORCE_PATH_STYLE=true
+      - NEXT_PRIVATE_UPLOAD_REGION=${NEXT_PRIVATE_UPLOAD_REGION:-us-east-1}
+      - NEXT_PRIVATE_UPLOAD_BUCKET=${NEXT_PRIVATE_UPLOAD_BUCKET:-documenso}
+      - NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID=${NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID:-documenso}
+      - NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY=${NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY:-password}
+      # Email is intentionally DISABLED — internal-only signing surfaces the
+      # signing link via the gafood FE, not email. Documenso still requires a
+      # transport + from identity to boot; these are inert placeholders since
+      # the backend sends with sendEmail:false, so no mail is ever attempted.
+      - NEXT_PRIVATE_SMTP_TRANSPORT=${NEXT_PRIVATE_SMTP_TRANSPORT:-smtp-auth}
+      - NEXT_PRIVATE_SMTP_FROM_NAME=${NEXT_PRIVATE_SMTP_FROM_NAME:-Documenso}
+      - NEXT_PRIVATE_SMTP_FROM_ADDRESS=${NEXT_PRIVATE_SMTP_FROM_ADDRESS:-noreply@localhost}
+      # Signing certificate. Provide the .p12 as a base64 string (no host file
+      # mount needed). Empty = signing disabled but the app still boots.
+      - NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS=${NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS}
+      - NEXT_PRIVATE_SIGNING_PASSPHRASE=${NEXT_PRIVATE_SIGNING_PASSPHRASE}
+      # No public signup — the only account is the seeded backend service user;
+      # signers use tokenized links and need no account.
+      - NEXT_PUBLIC_DISABLE_SIGNUP=${NEXT_PUBLIC_DISABLE_SIGNUP:-true}
+    networks:
+      - internal
+      - localnet
+    # Signing page served by Traefik on DOCUMENSO_HOST. The backend still talks
+    # to it over localnet by container name (no internet round-trip for the API).
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.documenso.rule=Host(`${DOCUMENSO_HOST}`)"
+      - "traefik.http.routers.documenso.entrypoints=websecure"
+      - "traefik.http.routers.documenso.tls=true"
+      - "traefik.http.routers.documenso.tls.certresolver=godaddy"
+      - "traefik.http.services.documenso-Service.loadbalancer.server.port=3000"
+      # ── Optional IP allow-list (restrict who can reach the signing page) ──
+      # Uncomment both lines + set TRUSTED_IPS to your office/VPN CIDRs.
+      # NOTE: Traefik v3 uses `ipallowlist`; Traefik v2 uses `ipwhitelist`.
+      # If Traefik sits behind another LB/CDN, also set `...ipallowlist.ipstrategy.depth`.
+      # - "traefik.http.routers.documenso.middlewares=documenso-ipallow"
+      # - "traefik.http.middlewares.documenso-ipallow.ipallowlist.sourcerange=${TRUSTED_IPS}"
+
+volumes:
+  database:
+  minio:
+
+networks:
+  localnet:
+    external: true
+  internal:

@@ -1,0 +1,176 @@
+# ═══════════════════════════════════════════════════════════════
+# gafood FRONTEND (Next.js) — GitLab CI/CD
+#
+# Mirrors the backend pipeline: build a Docker image and push it to the
+# GitLab Container Registry, tag a `-latest` release on staging/main, then
+# deploy on the host runner behind Traefik.
+#
+# NOTE: NEXT_PUBLIC_API_URL is inlined into the client bundle at BUILD time,
+# so it is passed as a --build-arg (chosen per target branch), not a runtime
+# env var. Override any default below with a GitLab CI/CD variable.
+#
+# Runner tags expected (same as backend): build, test, release, host.
+# ═══════════════════════════════════════════════════════════════
+
+variables:
+  CONTAINER_NAME: $CI_PROJECT_NAME-$CI_COMMIT_REF_SLUG
+  # Public URL of the backend API the browser will call, per environment.
+  # Override via CI/CD variables if your domains differ.
+  API_URL_STAGING: "https://backend-test.s2.ttpprojects.com"
+  API_URL_PRODUCTION: "https://backend.s2.ttpprojects.com"
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "staging"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+before_script:
+  - |
+    if [ -n "$CI_COMMIT_BRANCH" ]; then
+      export TARGET_BRANCH=$CI_COMMIT_BRANCH
+    elif [ -n "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" ]; then
+      export TARGET_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
+    else
+      export TARGET_BRANCH=$CI_COMMIT_REF_SLUG
+    fi
+  - export CONTAINER_DEPLOY_IMAGE="$CI_REGISTRY_IMAGE:$TARGET_BRANCH-$CI_COMMIT_SHORT_SHA"
+  - export CONTAINER_RELEASE_IMAGE="$CI_REGISTRY_IMAGE:$TARGET_BRANCH-latest"
+  # Pick the API URL baked into the bundle for this branch.
+  - |
+    if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+      export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$API_URL_PRODUCTION}"
+    else
+      export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$API_URL_STAGING}"
+    fi
+  - echo "TARGET_BRANCH=$TARGET_BRANCH"
+  - echo "DEPLOY_IMAGE=$CONTAINER_DEPLOY_IMAGE"
+  - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
+
+stages:
+  - build
+  - test
+  - release
+  - deploy
+
+# Build the Next.js image and push it to the registry.
+build:
+  stage: build
+  image:
+    name: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: thedockerhost
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - build
+  script:
+    - docker -v
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" -t $CONTAINER_DEPLOY_IMAGE .
+    - docker push $CONTAINER_DEPLOY_IMAGE
+    - docker logout $CI_REGISTRY
+
+# Placeholder test stage (lint/build already happen in the image build).
+test:
+  stage: test
+  tags:
+    - test
+  script:
+    - echo "no frontend tests yet"
+
+# Tag the freshly built image as <branch>-latest.
+release:
+  stage: release
+  image:
+    name: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: thedockerhost
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - release
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_DEPLOY_IMAGE
+    - docker tag $CONTAINER_DEPLOY_IMAGE $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+    - docker logout $CI_REGISTRY
+  dependencies:
+    - test
+
+# Deploy to the staging host.
+deploy_staging:
+  stage: deploy
+  tags:
+    - host
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_RELEASE_IMAGE
+    - if docker inspect $CONTAINER_NAME &> /dev/null; then export IMAGEID=$(docker inspect --format='{{.Image}}' $CONTAINER_NAME); fi
+    - if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME -f; fi
+    - if docker images --no-trunc --quiet | grep $IMAGEID; then docker rmi $IMAGEID -f; fi
+    - echo "Deploying frontend to staging..."
+    - >
+      docker run -d
+      -e NODE_ENV=development
+      -e PORT=3000
+      --name $CONTAINER_NAME
+      --network localnet
+      --restart unless-stopped
+      -l "traefik.enable=true"
+      -l "traefik.http.routers.frontend-test.rule=Host(\`frontend-test.s2.ttpprojects.com\`)"
+      -l "traefik.http.routers.frontend-test.entrypoints=websecure"
+      -l "traefik.http.routers.frontend-test.tls=true"
+      -l "traefik.http.routers.frontend-test.tls.certresolver=godaddy"
+      -l "traefik.http.services.frontend-test-Service.loadbalancer.server.port=3000"
+      $CONTAINER_RELEASE_IMAGE
+    - docker logout $CI_REGISTRY
+  dependencies:
+    - release
+  environment:
+    name: staging
+
+# Deploy to the production host (manual gate).
+deploy_production:
+  stage: deploy
+  tags:
+    - host
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      # when: manual
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_RELEASE_IMAGE
+    - if docker inspect $CONTAINER_NAME &> /dev/null; then export IMAGEID=$(docker inspect --format='{{.Image}}' $CONTAINER_NAME); fi
+    - if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME -f; fi
+    - if docker images --no-trunc --quiet | grep $IMAGEID; then docker rmi $IMAGEID -f; fi
+    - echo "Deploying frontend to production..."
+    - >
+      docker run -d
+      -e NODE_ENV=production
+      -e PORT=3000
+      --name $CONTAINER_NAME
+      --network localnet
+      --restart unless-stopped
+      -l "traefik.enable=true"
+      -l "traefik.http.routers.frontend.rule=Host(\`frontend.s2.ttpprojects.com\`)"
+      -l "traefik.http.routers.frontend.entrypoints=websecure"
+      -l "traefik.http.routers.frontend.tls=true"
+      -l "traefik.http.routers.frontend.tls.certresolver=godaddy"
+      -l "traefik.http.services.frontend-Service.loadbalancer.server.port=3000"
+      $CONTAINER_RELEASE_IMAGE
+    - docker logout $CI_REGISTRY
+  dependencies:
+    - release
+  environment:
+    name: production

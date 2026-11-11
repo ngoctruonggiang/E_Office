@@ -1,0 +1,65 @@
+// ─────────────────────────────────────────────────────────────
+// Request comments: a Facebook-style conversation on a request.
+//
+// One model serves two surfaces, distinguished by `stepOrder`:
+//   - stepOrder = null → the request-level feed (anyone with access).
+//   - stepOrder = N    → a thread scoped to approval step N (shown in the
+//                        step popup), e.g. an approver's note before/after acting.
+//
+// Step scoping uses the step's `order` (already exposed by FlowStatusDto and
+// clone-stable) instead of a FlowStep FK, so reserve-clones — which deep-copy the
+// flow into fresh step rows — keep their threads without any extra mapping.
+// ─────────────────────────────────────────────────────────────
+
+model RequestComment {
+  id          String   @id @default(uuid())
+  responseId  String
+  authorId    String
+  // Reply target. Replies form one logical thread; the API/UI nests them.
+  parentId    String?
+  // null = request-level feed; otherwise the approval step `order` this belongs to.
+  stepOrder   Int?
+  body        String
+  edited      Boolean  @default(false)
+  // Soft delete: kept so reply chains stay intact; body is blanked in the API.
+  deletedFlag Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  response    FormResponse        @relation(fields: [responseId], references: [id])
+  author      User                @relation(fields: [authorId], references: [id])
+  parent      RequestComment?     @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     RequestComment[]    @relation("CommentReplies")
+  reactions   CommentReaction[]
+  attachments CommentAttachment[]
+
+  @@index([responseId, stepOrder])
+  @@index([parentId])
+}
+
+model CommentReaction {
+  id        String   @id @default(uuid())
+  commentId String
+  userId    String
+  // Stored so a full reaction set can be added later without a migration; the
+  // current UI only toggles "LIKE".
+  type      String   @default("LIKE")
+  createdAt DateTime @default(now())
+
+  comment RequestComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id])
+
+  @@unique([commentId, userId])
+}
+
+model CommentAttachment {
+  id         String @id @default(uuid())
+  commentId  String
+  documentId String
+
+  comment  RequestComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  document Document       @relation(fields: [documentId], references: [id])
+
+  @@index([commentId])
+}

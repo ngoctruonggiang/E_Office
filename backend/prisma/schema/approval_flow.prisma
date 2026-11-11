@@ -1,0 +1,60 @@
+enum FlowMode {
+  SEQUENTIAL
+  PARALLEL
+}
+
+// A Flow is created by the end-user submitting a request — see RequestService.create.
+model Flow {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  steps     FlowStep[]
+  instances FlowInstance[]
+}
+
+model FlowStep {
+  id     String   @id @default(uuid())
+  flowId String
+  order  Int
+  mode   FlowMode
+  // Optional creator-given label; shown under "Step N" in the UI.
+  name   String?
+  // The final step that closes the flow: when its approver signs/approves the
+  // request is APPROVED. There is no separate requestor "close" step anymore.
+  isFinal Boolean @default(false)
+  // Whether this step must be completed for the request to close. The final
+  // step is always required; intermediate steps the requester adds are optional.
+  required Boolean @default(false)
+
+  flow      Flow           @relation(fields: [flowId], references: [id])
+  assignees FlowAssignee[]
+  tasks     Task[]
+
+  @@unique([flowId, order])
+}
+
+model FlowAssignee {
+  id     String   @id @default(uuid())
+  stepId String
+  userId String
+  order  Int? // execution order within a SEQUENTIAL step
+  // The assignee's duty: APPROVAL (approve/reject) or ACTION (do a task).
+  type   TaskType @default(APPROVAL)
+
+  step FlowStep @relation(fields: [stepId], references: [id])
+  user User     @relation(fields: [userId], references: [id])
+}
+
+model FlowInstance {
+  id          String  @id @default(uuid())
+  flowId      String
+  responseId  String  @unique
+  currentStep Int     @default(0)
+  isDone      Boolean @default(false)
+
+  flow     Flow         @relation(fields: [flowId], references: [id])
+  response FormResponse @relation(fields: [responseId], references: [id])
+
+  tasks Task[]
+}

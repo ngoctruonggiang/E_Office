@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────
+# LOCAL / DEV ONLY — Redis for the auth module (refresh tokens,
+# blacklist, session cache, rate limiting).
+#
+# This file is intentionally separate from any production compose
+# (note the .dev.yml name) so it is never started by accident in prod:
+# a plain `docker compose up` ignores it — you must pass -f explicitly.
+# In production, Redis is provided by a managed service (Elasticache,
+# Upstash, Redis Cloud, etc.), not this container.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml down
+# ─────────────────────────────────────────────────────────────
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: gafood-redis-dev
+    restart: unless-stopped
+    ports:
+      # Matches REDIS_HOST=127.0.0.1 / REDIS_PORT=6379 in .env
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_dev_data:/data
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: gafood-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: devdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Matches DATABASE_URL=postgresql://postgres:postgres@localhost:5432/devdb
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d devdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+
+volumes:
+  redis_dev_data:
+  postgres_dev_data:

@@ -1,0 +1,26 @@
+# Knowledge graph cache & output (Graphify)
+graphify-out/
+
+# Dependencies & build artifacts
+node_modules/
+dist/
+.next/
+out/
+build/
+coverage/
+
+# Environment variables (keep secrets local)
+.env
+.env.*
+!.env.example
+
+# Local uploads & sqlite artifacts
+uploads/
+*.db
+*.sqlite
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
+

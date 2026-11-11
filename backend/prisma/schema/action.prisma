@@ -1,0 +1,40 @@
+enum TaskType {
+  APPROVAL
+  ACTION
+  CLOSE // deprecated: the requestor's old closing duty (flows no longer create it)
+}
+
+enum TaskAction {
+  APPROVE
+  REQUEST_CHANGES
+  REJECT
+  FORWARD
+  COMPLETE
+  CANCEL
+}
+
+enum TaskStatus {
+  PENDING
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  instanceId  String
+  stepId      String
+  assigneeId  String
+
+  type        TaskType
+  status      TaskStatus @default(PENDING)
+
+  createdAt   DateTime   @default(now())
+  dueDate     DateTime?
+
+  action      TaskAction?
+  actedAt     DateTime?
+
+  instance    FlowInstance @relation(fields: [instanceId], references: [id])
+  step        FlowStep     @relation(fields: [stepId], references: [id])
+  assignee    User         @relation(fields: [assigneeId], references: [id])
+}

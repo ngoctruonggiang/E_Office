@@ -1,0 +1,35 @@
+// Which section a document occupies within a request's attachment list.
+//  - MAIN: part of the request's core content. Locked once submitted; editable
+//    only by the creator in craft mode (a DRAFT, e.g. a cloned draft).
+//  - SECONDARY: supporting files anyone with access may add at any time; only
+//    the creator may remove them.
+enum RequestDocSection {
+  MAIN
+  SECONDARY
+}
+
+model RequestDocument {
+  id         String            @id @default(uuid())
+  responseId String
+  documentId String
+  // Marks this attached document as the request's signing document (the one
+  // carrying SignatureField boxes). At most one per request.
+  signing    Boolean           @default(false)
+  // Section within the request (see RequestDocSection). Defaults to SECONDARY
+  // so pre-existing attachments and ad-hoc uploads are supporting files.
+  section    RequestDocSection @default(SECONDARY)
+
+  response   FormResponse @relation(fields: [responseId], references: [id])
+  document   Document     @relation(fields: [documentId], references: [id])
+}
+
+model RequestViewer {
+  id         String   @id @default(uuid())
+  responseId String
+  userId     String
+
+  response   FormResponse @relation(fields: [responseId], references: [id])
+  user       User         @relation(fields: [userId], references: [id])
+
+  @@unique([responseId, userId])
+}

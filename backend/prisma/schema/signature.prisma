@@ -1,0 +1,53 @@
+// ─────────────────────────────────────────────────────────────
+// Online signing overlay.
+//
+// The PDF/DOCX file itself is reused from Document (no duplication): a request
+// designates ONE attached document as its "signing document" (RequestDocument.
+// signing = true). Each SignatureField is one signature box placed on that
+// document and assigned to a chosen approver (by user id). Only the overlay
+// geometry + per-approver sign state live here; the signed PDF is assembled
+// client-side (pdf-lib) from the original bytes + these fields.
+//
+// "Position from scratch" rule: whenever the flow or signing document changes,
+// the owner replaces the whole set of fields (see SignatureService.setFields).
+// ─────────────────────────────────────────────────────────────
+
+enum SignatureStatus {
+  PENDING // placed, not yet acted on
+  SIGNED // approver signed (stamped with their reusable signature)
+  REJECTED // approver rejected / request was rejected
+}
+
+model SignatureField {
+  id         String @id @default(uuid())
+  responseId String
+  documentId String
+  // The chosen approver this box belongs to (a FlowAssignee user id).
+  assigneeId String
+
+  // Geometry as % of the page, top-left origin (matches the on-screen overlay).
+  page   Int
+  x      Float
+  y      Float
+  width  Float
+  height Float
+
+  status SignatureStatus @default(PENDING)
+
+  // Snapshot of the signer's reusable signature at sign time (so later profile
+  // edits don't retro-change already-signed documents).
+  signatureName  String?
+  signatureImage String? // data URL
+  signedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  response FormResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  document Document     @relation(fields: [documentId], references: [id])
+  assignee User         @relation(fields: [assigneeId], references: [id])
+
+  @@index([responseId])
+  @@index([documentId])
+  @@index([assigneeId])
+}
