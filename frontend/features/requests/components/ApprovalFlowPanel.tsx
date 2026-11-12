@@ -13,7 +13,7 @@ import {
   Flag,
   ChevronDown,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
 } from "lucide-react";
 import { useT, useLocale } from "@/components/providers/I18nProvider";
 import { useModal } from "@/components/providers/ModalProvider";
@@ -22,48 +22,48 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { CommentThread } from "@/features/comments/components/CommentThread";
 import { useCommentCounts } from "@/features/comments/hooks/useCommentCounts";
 import { formatDateTime } from "@/lib/utils/format";
-import { stepsWithState, actionTone, actionChipClasses } from "../lib/flow";
+import { stepsWithState, actionTone } from "../lib/flow";
 import type {
   FlowStatus,
   FlowStepAssignee,
-  FlowStepWithState
+  FlowStepWithState,
 } from "../types/detail";
 import { cn } from "@/lib/utils/cn";
 
 const stateStyles: Record<
   FlowStepWithState["state"],
-  { ring: string; dot: string; icon: React.ReactNode }
+  { dot: string; row: string; icon: React.ReactNode }
 > = {
   active: {
-    ring: "border-primary bg-accent",
-    dot: "bg-primary text-primary-foreground",
-    icon: <Clock size={13} />
+    dot: "bg-highlight text-highlight-foreground ring-2 ring-primary/25",
+    row: "bg-surface-secondary/80",
+    icon: <Clock size={12} />,
   },
   done: {
-    ring: "border-border bg-card",
-    dot: "bg-emerald-500 text-white",
-    icon: <Check size={13} />
+    dot: "bg-success text-white",
+    row: "hover:bg-surface-secondary/60",
+    icon: <Check size={12} />,
   },
   changes: {
-    ring: "border-amber-300 bg-amber-50/60",
-    dot: "bg-amber-500 text-white",
-    icon: <RefreshCw size={13} />
+    dot: "bg-warning text-white",
+    row: "bg-warning-subtle/50",
+    icon: <RefreshCw size={12} />,
   },
   rejected: {
-    ring: "border-destructive/30 bg-card",
-    dot: "bg-destructive text-destructive-foreground",
-    icon: <X size={13} />
+    dot: "bg-danger text-white",
+    row: "hover:bg-danger-subtle/40",
+    icon: <X size={12} />,
   },
   cancelled: {
-    ring: "border-border bg-card",
     dot: "bg-muted-foreground text-white",
-    icon: <Ban size={13} />
+    row: "hover:bg-surface-secondary/50",
+    icon: <Ban size={12} />,
   },
   pending: {
-    ring: "border-border bg-card",
-    dot: "bg-muted text-muted-foreground",
-    icon: <Circle size={13} />
-  }
+    dot: "bg-surface-secondary text-muted-foreground border border-border",
+    row: "hover:bg-surface-secondary/60",
+    icon: <Circle size={10} />,
+  },
 };
 
 function assigneeTone(status: FlowStepAssignee["status"]) {
@@ -76,10 +76,9 @@ function assigneeTone(status: FlowStepAssignee["status"]) {
         : "neutral";
 }
 
-/** A localized "Step N" + the creator's optional label / [Final] badge. */
 function StepHeading({
   step,
-  size
+  size,
 }: {
   step: FlowStepWithState;
   size: "sm" | "lg";
@@ -87,32 +86,27 @@ function StepHeading({
   const t = useT();
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <span
           className={cn(
             "font-medium text-foreground",
-            size === "lg" ? "text-lg font-semibold" : "text-sm"
+            size === "lg" ? "text-base font-semibold" : "text-sm",
           )}
         >
           {t("detail.step")} {step.order}
         </span>
-        {step.isFinal && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-            <Flag size={11} />
-            {t("create.finalStepBadge")}
+        {step.name && (
+          <span className="truncate text-xs text-muted-foreground">
+            · {step.name}
           </span>
         )}
+        {step.isFinal && (
+          <Badge tone="neutral" className="text-[10px]">
+            <Flag size={10} />
+            {t("create.finalStepBadge")}
+          </Badge>
+        )}
       </div>
-      {step.name && (
-        <p
-          className={cn(
-            "truncate text-foreground/80",
-            size === "lg" ? "text-sm" : "text-xs"
-          )}
-        >
-          {step.name}
-        </p>
-      )}
     </div>
   );
 }
@@ -120,7 +114,7 @@ function StepHeading({
 function StepActivityPopup({
   step,
   requestId,
-  commentCount
+  commentCount,
 }: {
   step: FlowStepWithState;
   requestId: string;
@@ -133,24 +127,21 @@ function StepActivityPopup({
     <div className="space-y-4">
       <div className="space-y-1">
         <StepHeading step={step} size="lg" />
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {t("detail.mode")}: {t(`flowMode.${step.mode}`)}
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="divide-y divide-border-subtle rounded-lg border border-border">
         {step.assignees.map((a) => (
-          <div
-            key={a.id}
-            className="rounded-md border border-border px-3 py-2.5"
-          >
+          <div key={a.id} className="px-3.5 py-2.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-foreground">
-                {t("detail.name")}: {a.displayName ?? "Unknown User (error)"}
+                {a.displayName ?? "Unknown User"}
               </span>
-
               <Badge
                 tone={a.action ? actionTone(a.action) : assigneeTone(a.status)}
+                dot
               >
                 {a.action
                   ? t(`taskAction.${a.action}`)
@@ -159,33 +150,27 @@ function StepActivityPopup({
                     : t("detail.notActedYet")}
               </Badge>
             </div>
-            <span className="text-sm font-medium text-foreground">
-              {t("detail.email")}: {a.email ?? "Unknown Email (error)"}
-            </span>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
+              {a.email ?? "Unknown Email"}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
               <span>{t(`taskType.${a.type}`)}</span>
-              {a.action && <span>· {t(`taskStatus.${a.status}`)}</span>}
               {a.actedAt && <span>· {formatDateTime(a.actedAt, locale)}</span>}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Collapsible step thread — an approver's note before/after acting. */}
-      <div className="border-t border-border pt-3">
+      <div className="border-t border-border-subtle pt-3">
         <button
           type="button"
           onClick={() => setShowComments((v) => !v)}
-          className="flex w-full items-center gap-2 text-sm font-medium text-foreground hover:text-primary"
+          className="flex w-full cursor-pointer items-center gap-2 text-sm font-medium text-foreground hover:text-primary"
         >
-          {showComments ? (
-            <ChevronDown size={15} />
-          ) : (
-            <ChevronRight size={15} />
-          )}
+          {showComments ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           <MessageSquare size={14} />
           {t("comments.stepThread")}
-          <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+          <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-surface-secondary px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
             {commentCount}
           </span>
         </button>
@@ -199,14 +184,14 @@ function StepActivityPopup({
   );
 }
 
-/** Right-rail vertical stepper visualizing the full planned approval flow. */
+/** Clean vertical timeline stepper visualizing the approval flow (no nested cards). */
 export function ApprovalFlowPanel({ flow }: { flow: FlowStatus }) {
   const t = useT();
   const { open } = useModal();
   const { countFor } = useCommentCounts(flow.requestId);
 
   if (!flow.hasFlow || flow.steps.length === 0) {
-    return <EmptyState title={t("detail.noFlow")} />;
+    return <EmptyState compact title={t("detail.noFlow")} />;
   }
 
   const steps = stepsWithState(flow);
@@ -216,8 +201,16 @@ export function ApprovalFlowPanel({ flow }: { flow: FlowStatus }) {
       {steps.map((step, idx) => {
         const styles = stateStyles[step.state];
         const commentCount = countFor(step.order);
+        const isLast = idx === steps.length - 1;
         return (
-          <li key={step.order}>
+          <li key={step.order} className="relative flex gap-2.5">
+            {!isLast && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 left-[19px] top-8 w-px bg-border"
+              />
+            )}
+
             <button
               type="button"
               onClick={() =>
@@ -226,56 +219,55 @@ export function ApprovalFlowPanel({ flow }: { flow: FlowStatus }) {
                     step={step}
                     requestId={flow.requestId}
                     commentCount={commentCount}
-                  />
+                  />,
                 )
               }
               className={cn(
-                "flex-col w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40",
-                styles.ring
+                "flex w-full cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-left transition-colors",
+                styles.row,
               )}
             >
               <span
                 className={cn(
-                  "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs",
-                  styles.dot
+                  "relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                  styles.dot,
                 )}
               >
                 {styles.icon}
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
+
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
                   <StepHeading step={step} size="sm" />
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span
-                      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
-                      title={t("comments.countTitle", {
-                        count: commentCount
-                      })}
-                    >
-                      <MessageSquare size={12} />
-                      {commentCount}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+                    {commentCount > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1"
+                        title={t("comments.countTitle", {
+                          count: commentCount,
+                        })}
+                      >
+                        <MessageSquare size={11} />
+                        {commentCount}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1">
                       {step.mode === "PARALLEL" ? (
-                        <GitBranch size={12} />
+                        <GitBranch size={11} />
                       ) : (
-                        <ArrowDown size={12} />
+                        <ArrowDown size={11} />
                       )}
                       {t(`flowMode.${step.mode}`)}
                     </span>
                   </div>
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
+
+                <div className="flex flex-wrap gap-1">
                   {step.assignees.map((a) => (
-                    <span
+                    <Badge
                       key={a.id}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]",
-                        actionChipClasses(a.action) ??
-                          (a.status === "PENDING"
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-muted text-muted-foreground")
-                      )}
+                      tone={a.action ? actionTone(a.action) : assigneeTone(a.status)}
+                      dot
                       title={
                         a.action
                           ? t(`taskAction.${a.action}`)
@@ -285,14 +277,11 @@ export function ApprovalFlowPanel({ flow }: { flow: FlowStatus }) {
                       }
                     >
                       {a.displayName ?? a.email}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
             </button>
-            {idx < steps.length - 1 && (
-              <div className="ml-6 h-2 w-px bg-border" />
-            )}
           </li>
         );
       })}

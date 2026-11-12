@@ -27,7 +27,7 @@ export function LoadingState({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex w-full items-center justify-center py-16 text-muted-foreground",
+        "flex w-full items-center justify-center py-14 text-muted-foreground",
         className,
       )}
     >

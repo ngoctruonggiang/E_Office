@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/Button";
 import type { FormDetail, FormValues, RequestValue } from "../types/form";
 import { buildInitialValues, toRequestValues } from "../lib/values";
 import { validateForm } from "../lib/validation";
@@ -80,13 +81,9 @@ export function FormRenderer({
         />
       ))}
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-md bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
-      >
-        {submitting ? "Submitting…" : submitLabel}
-      </button>
+      <Button type="submit" loading={submitting} disabled={busy}>
+        {submitting ? "…" : submitLabel}
+      </Button>
     </form>
   );
 }

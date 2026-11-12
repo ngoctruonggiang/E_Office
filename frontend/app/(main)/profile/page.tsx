@@ -3,17 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Field } from "@/components/ui/Field";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { InlineNotice } from "@/components/ui/InlineNotice";
+import { LoadingState } from "@/components/ui/Spinner";
 import { useT } from "@/components/providers/I18nProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { getMe, updateMe } from "@/features/auth/api/auth";
 import { formatBytes } from "@/lib/utils/format";
 
-// Stored as a base64 data URL in the user row (TEXT, ~2M char cap on the DTO).
-// base64 inflates ~1.33x, so cap the raw image well under that.
 const MAX_IMAGE_BYTES = Math.floor(1.4 * 1024 * 1024);
 
-// Approximate the raw byte size of a base64 data URL (used to show the size of
-// an already-saved signature image, where we no longer hold the File object).
 function dataUrlBytes(dataUrl: string): number {
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
   const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
@@ -34,7 +34,6 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Hydrate from a fresh GET /users/me so we always edit the latest server state.
   useEffect(() => {
     let active = true;
     getMe()
@@ -56,7 +55,7 @@ export default function ProfilePage() {
 
   function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file
+    e.target.value = "";
     if (!file) return;
     setError(null);
     if (!file.type.startsWith("image/")) {
@@ -82,7 +81,7 @@ export default function ProfilePage() {
       await updateMe({
         displayName: displayName.trim(),
         signatureName: signatureName.trim(),
-        signatureImage: signatureImage ?? "", // "" clears the field server-side
+        signatureImage: signatureImage ?? "",
       });
       notify({ title: t("profile.updated"), kind: "success" });
     } catch {
@@ -95,60 +94,51 @@ export default function ProfilePage() {
   const complete = Boolean(signatureImage && signatureName.trim());
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-foreground">
-          {t("profile.title")}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("profile.subtitle")}
-        </p>
-      </header>
+    <div className="mx-auto max-w-xl space-y-5">
+      <PageHeader title={t("profile.title")} description={t("profile.subtitle")} />
 
       {!loaded ? (
-        <div className="h-40 animate-pulse rounded-xl border border-border bg-muted/40" />
+        <LoadingState />
       ) : (
-        <>
+        <div className="divide-y divide-border-subtle rounded-lg border border-border bg-surface">
           {/* Personal information */}
-          <section className="space-y-4 rounded-xl border border-border bg-card p-6">
+          <section className="space-y-4 p-5">
             <h2 className="text-sm font-semibold text-foreground">
               {t("profile.personalInfo")}
             </h2>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-foreground">
-                {t("profile.displayName")}
-              </span>
-              <Input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={t("profile.displayNamePlaceholder")}
-                maxLength={120}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-foreground">
-                {t("profile.email")}
-              </span>
-              <Input value={email} disabled readOnly />
-            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t("profile.displayName")} htmlFor="profile-name">
+                <Input
+                  id="profile-name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t("profile.displayNamePlaceholder")}
+                  maxLength={120}
+                />
+              </Field>
+              <Field label={t("profile.email")} htmlFor="profile-email">
+                <Input id="profile-email" value={email} disabled readOnly />
+              </Field>
+            </div>
           </section>
 
           {/* Signature */}
-          <section className="space-y-5 rounded-xl border border-border bg-card p-6">
+          <section className="space-y-4 p-5">
             <div>
               <h2 className="text-sm font-semibold text-foreground">
                 {t("profile.signatureTitle")}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {t("profile.signatureDesc")}
               </p>
             </div>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-foreground">
-                {t("profile.signatureName")}
-              </span>
+            <Field
+              label={t("profile.signatureName")}
+              htmlFor="profile-signature-name"
+            >
               <Input
+                id="profile-signature-name"
                 value={signatureName}
                 onChange={(e) => setSignatureName(e.target.value)}
                 placeholder={t("profile.signatureNamePlaceholder")}
@@ -162,14 +152,14 @@ export default function ProfilePage() {
                   {signatureName}
                 </span>
               )}
-            </label>
+            </Field>
 
-            <div>
-              <span className="mb-1 block text-sm font-medium text-foreground">
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium text-foreground">
                 {t("profile.signatureImage")}
               </span>
-              <div className="flex items-center gap-4">
-                <div className="flex h-24 w-48 items-center justify-center rounded-md border border-dashed border-border bg-muted/40">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex h-24 w-48 items-center justify-center rounded-md border border-dashed border-border bg-surface-secondary/70 p-2">
                   {signatureImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -191,14 +181,30 @@ export default function ProfilePage() {
                     onChange={handleImage}
                     className="hidden"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {t("profile.uploadImage")}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {t("profile.uploadImage")}
+                    </Button>
+                    {signatureImage && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSignatureImage(null);
+                          setImageBytes(null);
+                        }}
+                        className="text-danger hover:bg-danger-subtle hover:text-danger"
+                      >
+                        {t("profile.removeImage")}
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {t("profile.imageHint", {
                       max: formatBytes(MAX_IMAGE_BYTES),
@@ -211,42 +217,29 @@ export default function ProfilePage() {
                       })}
                     </p>
                   )}
-                  {signatureImage && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSignatureImage(null);
-                        setImageBytes(null);
-                      }}
-                      className="block text-xs text-destructive hover:underline"
-                    >
-                      {t("profile.removeImage")}
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
 
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
+            {error && <InlineNotice kind="danger" title={error} />}
 
-            <div className="flex items-center justify-between gap-3">
-              <span
-                className={`text-xs font-medium ${
-                  complete ? "text-green-600" : "text-amber-600"
-                }`}
+            <InlineNotice
+              kind={complete ? "success" : "warning"}
+              title={complete ? t("profile.ready") : t("profile.incomplete")}
+            />
+
+            <div className="flex justify-end pt-1">
+              <Button
+                variant="accent"
+                onClick={handleSave}
+                loading={saving}
+                disabled={saving}
               >
-                {complete ? t("profile.ready") : t("profile.incomplete")}
-              </span>
-              <Button onClick={handleSave} loading={saving} disabled={saving}>
                 {saving ? t("profile.saving") : t("profile.save")}
               </Button>
             </div>
           </section>
-        </>
+        </div>
       )}
     </div>
   );

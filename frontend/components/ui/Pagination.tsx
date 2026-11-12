@@ -11,7 +11,7 @@ export type PaginationProps = {
   onPageChange: (page: number) => void;
 };
 
-/** Compact prev/next pager with a "Page X of Y" label and total count. */
+/** Compact prev/next pager with tabular count and restrained controls. */
 export function Pagination({
   page,
   totalPages,
@@ -20,11 +20,11 @@ export function Pagination({
 }: PaginationProps) {
   const t = useT();
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground">
-      <span>
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs text-muted-foreground">
+      <span className="tabular-nums">
         {total} {t("common.results")}
       </span>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <Button
           variant="outline"
           size="icon"
@@ -32,9 +32,9 @@ export function Pagination({
           onClick={() => onPageChange(page - 1)}
           aria-label={t("common.previous")}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={15} />
         </Button>
-        <span className="min-w-24 text-center">
+        <span className="min-w-24 text-center tabular-nums">
           {t("common.page")} {page} {t("common.of")} {Math.max(totalPages, 1)}
         </span>
         <Button
@@ -44,7 +44,7 @@ export function Pagination({
           onClick={() => onPageChange(page + 1)}
           aria-label={t("common.next")}
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={15} />
         </Button>
       </div>
     </div>

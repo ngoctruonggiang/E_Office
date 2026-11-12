@@ -19,14 +19,13 @@ import { useModal } from "@/components/providers/ModalProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { UserPicker } from "@/features/users/components/UserPicker";
+import { ActionMenu, type ActionMenuItem } from "@/components/ui/ActionMenu";
 import { SignDocumentModal } from "@/features/signing/components/SignDocumentModal";
 import { ApiError } from "@/lib/api/client";
 import {
   actOnRequest,
   reviseRequest,
   cloneRequest,
-  forwardRequest,
   cancelRequest,
   requestChangesSelf,
 } from "../api/requests";
@@ -34,9 +33,9 @@ import { availableActions } from "../lib/flow";
 import type { RequestDetail, TaskAction } from "../types/detail";
 
 /**
- * The request's single top action bar. Hosts every button that interacts with
- * the request: the draft Confirm, edit-form toggle, share (add viewers), the
- * approver's approval actions, and the requestor's revise / clone / cancel.
+ * Contextual request action bar (Design Rules 1.4, 7.2 & AP #9):
+ * surfaces at most 1 primary CTA (GAFOOD accent), 1 secondary button, and
+ * groups overflow / destructive actions inside an overflow menu (`...`).
  */
 export function RequestActionBar({
   detail,
@@ -53,14 +52,11 @@ export function RequestActionBar({
   detail: RequestDetail;
   userId: string;
   onActed: () => void;
-  /** Requestor may edit the form values (top toggle). */
   canEditForm?: boolean;
   isEditingForm?: boolean;
   onEditForm?: () => void;
-  /** Requestor or sharing assignee may add viewers. */
   canShare?: boolean;
   onShare?: () => void;
-  /** Draft clone: confirm submits it (draft → pending). */
   canConfirmDraft?: boolean;
   onConfirmDraft?: () => Promise<void>;
 }) {
@@ -105,26 +101,12 @@ export function RequestActionBar({
     }
   };
 
-  // Clone-reset a finished request into a fresh DRAFT craft and open it.
   const doCloneReset = async () => {
     setBusy(true);
     try {
       const clone = await cloneRequest(detail.id, "reset");
       notify({ title: t("toast.cloned"), kind: "success" });
       router.push(`/requests/${clone.id}`);
-    } catch (err) {
-      fail(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doForward = async (toUserId: string) => {
-    setBusy(true);
-    try {
-      await forwardRequest(detail.id, toUserId);
-      notify({ title: t("taskAction.FORWARD"), kind: "success" });
-      onActed();
     } catch (err) {
       fail(err);
     } finally {
@@ -142,14 +124,12 @@ export function RequestActionBar({
     }
   };
 
-  // Requestor's standalone actions (independent of any flow task).
   const canSelfCancel =
     isOwner &&
     (detail.status === "DRAFT" ||
       detail.status === "PENDING" ||
       detail.status === "REQUEST_CHANGES");
   const canSelfRequestChanges = isOwner && detail.status === "PENDING";
-  // A finished request can be cloned into a fresh DRAFT craft (clone-reset).
   const canCloneReset =
     detail.status === "APPROVED" ||
     detail.status === "REJECTED" ||
@@ -198,11 +178,197 @@ export function RequestActionBar({
       { size: "4xl" },
     );
 
-  const cancelButton = (
-    <Button
-      variant="ghost"
-      disabled={busy}
-      onClick={() =>
+  // Determine the single primary CTA
+  let primaryCta: React.ReactNode = null;
+  if (canConfirmDraft) {
+    primaryCta = (
+      <Button variant="accent" loading={busy} onClick={doConfirmDraft}>
+        <Send size={15} />
+        {t("draft.submit")}
+      </Button>
+    );
+  } else if (awaitingRevision) {
+    primaryCta = (
+      <Button
+        variant="accent"
+        disabled={busy}
+        onClick={() => open(<ReviseDialog onPick={doRevise} />)}
+      >
+        <RefreshCw size={15} />
+        {t("revise.action")}
+      </Button>
+    );
+  } else if (!awaitingRevision && primaryAction) {
+    primaryCta = (
+      <Button
+        variant="accent"
+        loading={busy}
+        onClick={() => {
+          if (primaryAction === "APPROVE" && hasSigningDoc) {
+            openSignModal("approve");
+            return;
+          }
+          act(
+            primaryAction,
+            isClose
+              ? "toast.closed"
+              : primaryAction === "COMPLETE"
+                ? "toast.completed"
+                : "toast.approved",
+          );
+        }}
+      >
+        {isClose ? <Flag size={15} /> : <Check size={15} />}
+        {isClose ? t("detail.closeFlow") : t(`taskAction.${primaryAction}`)}
+      </Button>
+    );
+  } else if (canCloneReset) {
+    primaryCta = (
+      <Button variant="outline" loading={busy} onClick={doCloneReset}>
+        <Copy size={15} />
+        {t("clone.reset")}
+      </Button>
+    );
+  }
+
+  // Determine at most 1 prominent secondary action; rest go into overflow menu
+  let secondaryButton: React.ReactNode = null;
+  let secondaryUsedBy: "edit" | "requestChanges" | "share" | null = null;
+  if (canEditForm && !isEditingForm && onEditForm) {
+    secondaryUsedBy = "edit";
+    secondaryButton = (
+      <Button variant="outline" disabled={busy} onClick={onEditForm}>
+        <Pencil size={14} />
+        {t("common.edit")}
+      </Button>
+    );
+  } else if (!awaitingRevision && actions.canRequestChanges) {
+    secondaryUsedBy = "requestChanges";
+    secondaryButton = (
+      <Button
+        variant="outline"
+        loading={busy}
+        onClick={() =>
+          open(
+            <ConfirmDialog
+              title={t("requestChanges.title")}
+              description={t("requestChanges.desc")}
+              confirmLabel={t("taskAction.REQUEST_CHANGES")}
+              onConfirm={() => act("REQUEST_CHANGES", "toast.changesRequested")}
+            />,
+          )
+        }
+      >
+        <RefreshCw size={14} />
+        {t("taskAction.REQUEST_CHANGES")}
+      </Button>
+    );
+  } else if (canShare && onShare && !primaryCta) {
+    secondaryUsedBy = "share";
+    secondaryButton = (
+      <Button variant="outline" disabled={busy} onClick={onShare}>
+        <Share2 size={14} />
+        {t("viewers.share")}
+      </Button>
+    );
+  }
+
+  // Overflow menu items
+  const menuItems: ActionMenuItem[] = [];
+
+  if (canEditForm && !isEditingForm && onEditForm && secondaryUsedBy !== "edit") {
+    menuItems.push({
+      id: "edit-form",
+      label: t("common.edit"),
+      icon: <Pencil size={14} />,
+      disabled: busy,
+      onSelect: onEditForm,
+    });
+  }
+
+  if (canShare && onShare && secondaryUsedBy !== "share") {
+    menuItems.push({
+      id: "share-viewers",
+      label: t("viewers.share"),
+      icon: <Share2 size={14} />,
+      disabled: busy,
+      onSelect: onShare,
+    });
+  }
+
+  if (!awaitingRevision && actions.canForward) {
+    menuItems.push({
+      id: "forward",
+      label: t("taskAction.FORWARD"),
+      icon: <Forward size={14} />,
+      disabled: busy,
+      onSelect: () =>
+        notify({
+          title: "Tính năng chuyển tiếp đang bảo trì",
+          message:
+            "Tính năng chuyển tiếp hiện đang được bảo trì. Vui lòng thử lại sau.\n\nTips (không chỉ định): Có thể yêu cầu chỉnh sửa luồng phê duyệt, nhưng điều này sẽ mất trạng thái phê duyệt cũ.",
+          kind: "warning",
+        }),
+    });
+  }
+
+  if (!awaitingRevision && canSelfRequestChanges) {
+    menuItems.push({
+      id: "self-request-changes",
+      label: t("taskAction.REQUEST_CHANGES"),
+      icon: <RefreshCw size={14} />,
+      disabled: busy,
+      onSelect: () =>
+        open(
+          <ConfirmDialog
+            title={t("selfChanges.title")}
+            description={t("selfChanges.desc")}
+            confirmLabel={t("taskAction.REQUEST_CHANGES")}
+            onConfirm={runSelf(
+              () => requestChangesSelf(detail.id),
+              "toast.changesRequested",
+            )}
+          />,
+        ),
+    });
+  }
+
+  if (!awaitingRevision && actions.canReject) {
+    menuItems.push({
+      id: "reject",
+      label: t("taskAction.REJECT"),
+      icon: <X size={14} />,
+      tone: "danger",
+      disabled: busy,
+      dividerBefore: menuItems.length > 0,
+      onSelect: () => {
+        if (hasSigningDoc) {
+          openSignModal("reject");
+          return;
+        }
+        open(
+          <ConfirmDialog
+            title={t("confirm.rejectTitle")}
+            description={t("confirm.rejectDesc")}
+            confirmLabel={t("taskAction.REJECT")}
+            tone="danger"
+            onConfirm={() => act("REJECT", "toast.rejected")}
+          />,
+        );
+      },
+    });
+  }
+
+  if (canSelfCancel) {
+    menuItems.push({
+      id: "cancel-request",
+      label: t("taskAction.CANCEL"),
+      icon: <Ban size={14} />,
+      tone: "danger",
+      disabled: busy,
+      dividerBefore:
+        menuItems.length > 0 && menuItems[menuItems.length - 1]?.tone !== "danger",
+      onSelect: () =>
         open(
           <ConfirmDialog
             title={t("confirm.cancelTitle")}
@@ -211,186 +377,15 @@ export function RequestActionBar({
             tone="danger"
             onConfirm={runSelf(() => cancelRequest(detail.id), "toast.cancelled")}
           />,
-        )
-      }
-    >
-      <Ban size={15} />
-      {t("taskAction.CANCEL")}
-    </Button>
-  );
+        ),
+    });
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Draft confirm: submit the cloned draft (draft → pending). */}
-      {canConfirmDraft && (
-        <Button loading={busy} onClick={doConfirmDraft}>
-          <Send size={16} />
-          {t("draft.submit")}
-        </Button>
-      )}
-
-      {/* Edit the form values in place. */}
-      {canEditForm && !isEditingForm && (
-        <Button variant="outline" disabled={busy} onClick={onEditForm}>
-          <Pencil size={15} />
-          {t("common.edit")}
-        </Button>
-      )}
-
-      {/* Share: add viewers to the viewable list. */}
-      {canShare && (
-        <Button variant="outline" disabled={busy} onClick={onShare}>
-          <Share2 size={15} />
-          {t("viewers.share")}
-        </Button>
-      )}
-
-      {/* Requestor handling a returned request: revise (clone reset|reserve). */}
-      {awaitingRevision && (
-        <Button
-          disabled={busy}
-          onClick={() => open(<ReviseDialog onPick={doRevise} />)}
-        >
-          <RefreshCw size={16} />
-          {t("revise.action")}
-        </Button>
-      )}
-
-      {/* Approver's actions on a pending task. */}
-      {!awaitingRevision && primaryAction && (
-        <Button
-          loading={busy}
-          onClick={() => {
-            // An approval on a request with an online-signing document must go
-            // through the APPROVE popup (sign-then-approve).
-            if (primaryAction === "APPROVE" && hasSigningDoc) {
-              openSignModal("approve");
-              return;
-            }
-            act(
-              primaryAction,
-              isClose
-                ? "toast.closed"
-                : primaryAction === "COMPLETE"
-                  ? "toast.completed"
-                  : "toast.approved",
-            );
-          }}
-        >
-          {isClose ? <Flag size={16} /> : <Check size={16} />}
-          {isClose ? t("detail.closeFlow") : t(`taskAction.${primaryAction}`)}
-        </Button>
-      )}
-
-      {!awaitingRevision && actions.canRequestChanges && (
-        <Button
-          variant="outline"
-          loading={busy}
-          onClick={() =>
-            open(
-              <ConfirmDialog
-                title={t("requestChanges.title")}
-                description={t("requestChanges.desc")}
-                confirmLabel={t("taskAction.REQUEST_CHANGES")}
-                onConfirm={() => act("REQUEST_CHANGES", "toast.changesRequested")}
-              />,
-            )
-          }
-        >
-          <RefreshCw size={15} />
-          {t("taskAction.REQUEST_CHANGES")}
-        </Button>
-      )}
-
-      {!awaitingRevision && actions.canForward && (
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() =>
-            notify({
-              title: "Tính năng chuyển tiếp đang bảo trì",
-              message: "Tính năng chuyển tiếp hiện đang được bảo trì. Vui lòng thử lại sau.\n\n Tips (không chỉ định): Có thể yêu cầu chỉnh sửa luồng phê duyệt, nhưng điều này sẽ mất trạng thái phê duyệt cũ.",
-              kind: "warning",
-            }
-          )
-            // open(
-            //   <UserPicker
-            //     title={t("taskAction.FORWARD")}
-            //     initialSelected={[]}
-            //     excludeIds={[userId]}
-            //     single
-            //     onConfirm={(ids) => {
-            //       if (ids[0]) void doForward(ids[0]);
-            //     }}
-            //   />,
-            // )
-          }
-        >
-          <Forward size={15} />
-          {t("taskAction.FORWARD")}
-        </Button>
-      )}
-
-      {!awaitingRevision && actions.canReject && (
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() => {
-            // With an online-signing document, rejecting goes through the
-            // document popup (reject sign + reject request).
-            if (hasSigningDoc) {
-              openSignModal("reject");
-              return;
-            }
-            open(
-              <ConfirmDialog
-                title={t("confirm.rejectTitle")}
-                description={t("confirm.rejectDesc")}
-                confirmLabel={t("taskAction.REJECT")}
-                tone="danger"
-                onConfirm={() => act("REJECT", "toast.rejected")}
-              />,
-            );
-          }}
-        >
-          <X size={15} />
-          {t("taskAction.REJECT")}
-        </Button>
-      )}
-
-      {/* Requestor's standalone request-changes (pull a pending request back). */}
-      {!awaitingRevision && canSelfRequestChanges && (
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() =>
-            open(
-              <ConfirmDialog
-                title={t("selfChanges.title")}
-                description={t("selfChanges.desc")}
-                confirmLabel={t("taskAction.REQUEST_CHANGES")}
-                onConfirm={runSelf(
-                  () => requestChangesSelf(detail.id),
-                  "toast.changesRequested",
-                )}
-              />,
-            )
-          }
-        >
-          <RefreshCw size={15} />
-          {t("taskAction.REQUEST_CHANGES")}
-        </Button>
-      )}
-
-      {canSelfCancel && cancelButton}
-
-      {/* Finished request: start a fresh DRAFT craft from it (clone-reset). */}
-      {canCloneReset && (
-        <Button loading={busy} onClick={doCloneReset}>
-          <Copy size={16} />
-          {t("clone.reset")}
-        </Button>
-      )}
+      {secondaryButton}
+      {primaryCta}
+      <ActionMenu items={menuItems} label={t("common.actions")} />
     </div>
   );
 }
@@ -429,7 +424,7 @@ function ReviseDialog({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="text-base font-semibold text-foreground">
           {t("revise.title")}
         </h2>
         <p className="text-sm text-muted-foreground">{t("revise.desc")}</p>
@@ -441,7 +436,7 @@ function ReviseDialog({
             type="button"
             disabled={busy !== null}
             onClick={choose(opt.mode)}
-            className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-primary hover:bg-accent disabled:opacity-50"
+            className="w-full cursor-pointer rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:border-primary/50 hover:bg-surface-secondary disabled:opacity-50"
           >
             <p className="text-sm font-medium text-foreground">{opt.title}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{opt.desc}</p>

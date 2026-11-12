@@ -31,14 +31,14 @@ export function LanguageSwitcher() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Language"
-        className="flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-foreground/70 hover:bg-muted hover:text-foreground"
+        className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
       >
-        <Languages size={16} />
+        <Languages size={15} />
         <span className="hidden sm:inline">{current?.flag}</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-md border border-border bg-popover py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-40 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg">
           {LOCALES.map((l) => (
             <button
               key={l.code}
@@ -48,8 +48,10 @@ export function LanguageSwitcher() {
                 setOpen(false);
               }}
               className={cn(
-                "flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-muted",
-                l.code === locale ? "text-foreground" : "text-muted-foreground",
+                "flex w-full cursor-pointer items-center justify-between px-3 py-2 text-sm hover:bg-surface-secondary",
+                l.code === locale
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground",
               )}
             >
               <span className="flex items-center gap-2">

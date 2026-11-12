@@ -14,7 +14,7 @@ export type ConfirmDialogProps = {
   onConfirm: () => void | Promise<void>;
 };
 
-/** Reusable confirm popup. Open it via `useModal().open(<ConfirmDialog … />)`. */
+/** Reusable confirm popup. Open via `useModal().open(<ConfirmDialog … />)`. */
 export function ConfirmDialog({
   title,
   description,
@@ -30,17 +30,18 @@ export function ConfirmDialog({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {description && (
           <p className="text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={close} disabled={busy}>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="outline" size="sm" onClick={close} disabled={busy}>
           {cancelLabel ?? t("common.cancel")}
         </Button>
         <Button
-          variant={tone}
+          variant={tone === "danger" ? "danger-solid" : "primary"}
+          size="sm"
           loading={busy}
           onClick={async () => {
             setBusy(true);

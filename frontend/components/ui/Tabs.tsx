@@ -16,9 +16,8 @@ export type TabsProps = {
   className?: string;
 };
 
-/** Underline tab bar (controlled). */
+/** Restrained underline tab bar (controlled). */
 export function Tabs({ items, value, onValueChange, className }: TabsProps) {
-  return <></>
   return (
     <div
       role="tablist"
@@ -34,20 +33,20 @@ export function Tabs({ items, value, onValueChange, className }: TabsProps) {
             type="button"
             onClick={() => onValueChange(item.value)}
             className={cn(
-              "relative -mb-px flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
+              "relative -mb-px flex cursor-pointer items-center gap-2 border-b-2 px-3.5 py-2 text-sm transition-colors",
               active
-                ? "border-b-2 border-primary text-foreground"
-                : "border-b-2 border-transparent text-muted-foreground hover:text-foreground",
+                ? "border-primary font-medium text-foreground"
+                : "border-transparent font-normal text-muted-foreground hover:text-foreground",
             )}
           >
             {item.label}
             {item.badge != null && (
               <span
                 className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+                  "rounded-full px-1.5 py-0.5 text-[11px] font-medium tabular-nums leading-none",
                   active
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
+                    ? "bg-primary/10 text-primary"
+                    : "bg-surface-secondary text-muted-foreground",
                 )}
               >
                 {item.badge}

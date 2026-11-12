@@ -1,62 +1,125 @@
 "use client";
 
+import { useEffect } from "react";
+import { Bell, X } from "lucide-react";
+import { useLocale, useT } from "@/components/providers/I18nProvider";
+import { useLayout } from "@/components/providers/LayoutProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { formatDateTime } from "@/lib/utils/format";
+import { cn } from "@/lib/utils/cn";
 
-/** Right sidebar for notifications. */
+/** Slide-over notification drawer toggled from the Header bell icon. */
 export function NotificationPanel() {
-  const { notifications, unreadCount, markAllRead, clearAll } = useNotifications();
+  const t = useT();
+  const [locale] = useLocale();
+  const { setNotificationsOpen } = useLayout();
+  const { notifications, unreadCount, markAllRead, clearAll } =
+    useNotifications();
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setNotificationsOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [setNotificationsOpen]);
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-l border-black/10 dark:border-white/10">
-      <div className="flex h-14 items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
-        <span className="font-semibold">
-          Notifications
-          {unreadCount > 0 && (
-            <span className="ml-2 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-medium">
-              {unreadCount}
+    <>
+      <div
+        aria-hidden="true"
+        onClick={() => setNotificationsOpen(false)}
+        className="fixed inset-0 z-30 bg-black/15"
+      />
+      <aside
+        aria-label={t("notifications.title")}
+        className="fixed inset-y-0 right-0 z-40 flex w-80 max-w-[92vw] flex-col border-l border-border bg-surface shadow-xl"
+      >
+        <div className="flex h-13 shrink-0 items-center justify-between border-b border-border px-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {t("notifications.title")}
             </span>
-          )}
-        </span>
-        {notifications.length > 0 && (
-          <button
-            type="button"
-            onClick={markAllRead}
-            className="text-xs text-foreground/60 hover:text-foreground"
-          >
-            Mark read
-          </button>
-        )}
-      </div>
+            {unreadCount > 0 && (
+              <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-[11px] font-medium tabular-nums text-foreground">
+                {unreadCount}
+              </span>
+            )}
+          </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        {notifications.length === 0 ? (
-          <p className="p-2 text-sm text-foreground/60">No notifications yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {notifications.map((n) => (
-              <li
-                key={n.id}
-                className={`rounded-md p-2 text-sm ${n.read ? "text-foreground/60" : "bg-foreground/5"}`}
+          <div className="flex items-center gap-2">
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                <p className="font-medium">{n.title}</p>
-                {n.message && <p className="text-foreground/60">{n.message}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {notifications.length > 0 && (
-        <div className="border-t border-black/10 p-2 dark:border-white/10">
-          <button
-            type="button"
-            onClick={clearAll}
-            className="w-full rounded-md py-1.5 text-xs text-foreground/60 hover:bg-foreground/5"
-          >
-            Clear all
-          </button>
+                {t("notifications.markAllRead")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(false)}
+              aria-label={t("common.close")}
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
-      )}
-    </aside>
+
+        <div className="flex-1 overflow-y-auto p-3">
+          {notifications.length === 0 ? (
+            <EmptyState
+              compact
+              icon={<Bell size={18} strokeWidth={1.6} />}
+              title={t("notifications.empty")}
+            />
+          ) : (
+            <ul className="space-y-1.5">
+              {notifications.map((n) => (
+                <li
+                  key={n.id}
+                  className={cn(
+                    "rounded-md border px-3 py-2.5 text-sm transition-colors",
+                    n.read
+                      ? "border-transparent text-muted-foreground"
+                      : "border-border-subtle bg-surface-secondary text-foreground",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium leading-snug">{n.title}</p>
+                    {!n.read && (
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-highlight ring-1 ring-primary/20" />
+                    )}
+                  </div>
+                  {n.message && (
+                    <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
+                      {n.message}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-[11px] text-muted-foreground/80">
+                    {formatDateTime(new Date(n.createdAt), locale)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {notifications.length > 0 && (
+          <div className="border-t border-border p-3">
+            <button
+              type="button"
+              onClick={clearAll}
+              className="w-full cursor-pointer rounded-md border border-border bg-surface py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-secondary hover:text-foreground"
+            >
+              {t("notifications.clearAll")}
+            </button>
+          </div>
+        )}
+      </aside>
+    </>
   );
 }

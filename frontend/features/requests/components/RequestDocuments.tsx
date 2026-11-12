@@ -165,7 +165,7 @@ export function RequestDocuments({
           />
         ))
       ) : (
-        <EmptyState title={t("detail.noDocuments")} />
+        <EmptyState compact title={t("detail.noDocuments")} />
       )}
 
       {canAdd && requestId && (

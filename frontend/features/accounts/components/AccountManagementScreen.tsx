@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Pencil, Plus, Search, ShieldCheck } from "lucide-react";
+import { KeyRound, Pencil, Plus, Power, Search, ShieldCheck } from "lucide-react";
 import { useT, useLocale } from "@/components/providers/I18nProvider";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useModal } from "@/components/providers/ModalProvider";
@@ -10,9 +10,19 @@ import { useNotifications } from "@/components/providers/NotificationProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
-import { Spinner } from "@/components/ui/Spinner";
+import { LoadingState } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/Table";
+import {
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+  TableCellStack,
+} from "@/components/ui/Table";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { formatDate } from "@/lib/utils/format";
 import { ApiError } from "@/lib/api/client";
 import { useAccountList } from "../hooks/useAccountList";
@@ -31,18 +41,13 @@ export function AccountManagementScreen() {
   const { notify } = useNotifications();
   const { accounts, search, setSearch, loading, reload } = useAccountList();
 
-  // Account management is admin-only; bounce others to organizations.
   const isAdmin = user?.role === "admin";
   useEffect(() => {
     if (!authLoading && !isAdmin) router.replace("/staff/organizations");
   }, [authLoading, isAdmin, router]);
 
   if (authLoading || !isAdmin) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   const toggleActive = async (account: UserLite) => {
@@ -61,19 +66,20 @@ export function AccountManagementScreen() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-foreground">
-          {t("staff.accountsTitle")}
-        </h1>
-        <Button
-          onClick={() =>
-            open(<AccountFormModal onSaved={reload} />, { size: "md" })
-          }
-        >
-          <Plus size={16} />
-          {t("staff.newAccount")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("staff.accountsTitle")}
+        actions={
+          <Button
+            variant="accent"
+            onClick={() =>
+              open(<AccountFormModal onSaved={reload} />, { size: "md" })
+            }
+          >
+            <Plus size={16} />
+            {t("staff.newAccount")}
+          </Button>
+        }
+      />
 
       <div className="relative max-w-sm">
         <Search
@@ -88,11 +94,9 @@ export function AccountManagementScreen() {
         />
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">
         {loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner />
-          </div>
+          <LoadingState />
         ) : accounts.length === 0 ? (
           <EmptyState title={t("staff.noAccounts")} />
         ) : (
@@ -100,20 +104,21 @@ export function AccountManagementScreen() {
             <THead>
               <TR>
                 <TH>{t("staff.displayName")}</TH>
-                <TH>{t("staff.email")}</TH>
                 <TH>{t("staff.systemRole")}</TH>
                 <TH>{t("common.status")}</TH>
                 <TH>{t("staff.createdAt")}</TH>
-                <TH className="text-right">{t("common.actions")}</TH>
+                <TH className="w-12 text-right">{t("common.actions")}</TH>
               </TR>
             </THead>
             <TBody>
               {accounts.map((account) => (
                 <TR key={account.id}>
-                  <TD className="font-medium text-foreground">
-                    {account.displayName ?? "—"}
+                  <TD>
+                    <TableCellStack
+                      primary={account.displayName ?? account.email}
+                      secondary={account.email}
+                    />
                   </TD>
-                  <TD className="text-muted-foreground">{account.email}</TD>
                   <TD>
                     <Badge tone={account.role === "admin" ? "info" : "neutral"}>
                       {account.role === "admin" ? (
@@ -127,55 +132,53 @@ export function AccountManagementScreen() {
                     </Badge>
                   </TD>
                   <TD>
-                    <Badge tone={account.isActive ? "success" : "neutral"}>
+                    <Badge tone={account.isActive ? "success" : "neutral"} dot>
                       {account.isActive
                         ? t("staff.statusActive")
                         : t("staff.statusInactive")}
                     </Badge>
                   </TD>
-                  <TD className="text-muted-foreground">
+                  <TD className="text-xs text-muted-foreground tabular-nums">
                     {formatDate(account.createdAt, locale)}
                   </TD>
-                  <TD>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          open(
-                            <AccountFormModal
-                              account={account}
-                              onSaved={reload}
-                            />,
-                            { size: "md" },
-                          )
-                        }
-                      >
-                        <Pencil size={14} />
-                        {t("common.edit")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          open(<PasswordResetModal account={account} />, {
-                            size: "md",
-                          })
-                        }
-                      >
-                        <KeyRound size={14} />
-                        {t("staff.resetPassword")}
-                      </Button>
-                      <Button
-                        variant={account.isActive ? "ghost" : "outline"}
-                        size="sm"
-                        onClick={() => toggleActive(account)}
-                      >
-                        {account.isActive
-                          ? t("staff.deactivate")
-                          : t("staff.activate")}
-                      </Button>
-                    </div>
+                  <TD className="text-right">
+                    <ActionMenu
+                      label={t("common.actions")}
+                      items={[
+                        {
+                          id: "edit",
+                          label: t("common.edit"),
+                          icon: <Pencil size={14} />,
+                          onSelect: () =>
+                            open(
+                              <AccountFormModal
+                                account={account}
+                                onSaved={reload}
+                              />,
+                              { size: "md" },
+                            ),
+                        },
+                        {
+                          id: "reset-pw",
+                          label: t("staff.resetPassword"),
+                          icon: <KeyRound size={14} />,
+                          onSelect: () =>
+                            open(<PasswordResetModal account={account} />, {
+                              size: "md",
+                            }),
+                        },
+                        {
+                          id: "toggle-active",
+                          label: account.isActive
+                            ? t("staff.deactivate")
+                            : t("staff.activate"),
+                          icon: <Power size={14} />,
+                          tone: account.isActive ? "danger" : "default",
+                          dividerBefore: true,
+                          onSelect: () => void toggleActive(account),
+                        },
+                      ]}
+                    />
                   </TD>
                 </TR>
               ))}

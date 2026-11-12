@@ -24,9 +24,8 @@ export type ModalProps = {
 };
 
 /**
- * Base popup built on the native <dialog> element, so focus-trapping,
- * Esc-to-close and the backdrop come for free. Prefer the imperative
- * `useModal()` API for feature usage; use this directly for declarative cases.
+ * Base popup built on the native <dialog> element for focus trapping, Esc
+ * close and backdrop. Prefer `useModal()` for imperative feature usage.
  */
 export function Modal({
   open,
@@ -49,13 +48,11 @@ export function Modal({
       ref={ref}
       onClose={onClose}
       onClick={(e) => {
-        // The dialog element itself fills the backdrop; clicks on children
-        // won't have it as the target.
         if (dismissable && e.target === ref.current) onClose();
       }}
-      className={`m-auto w-full ${SIZE_CLASS[size]} rounded-xl border border-black/10 bg-background p-0 text-foreground shadow-xl backdrop:bg-black/50 dark:border-white/10`}
+      className={`m-auto w-full ${SIZE_CLASS[size]} rounded-lg border border-border bg-surface p-0 text-foreground shadow-xl backdrop:bg-black/40`}
     >
-      {open && <div className="p-6">{children}</div>}
+      {open && <div className="p-5">{children}</div>}
     </dialog>
   );
 }

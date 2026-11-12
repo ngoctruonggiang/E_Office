@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
 import { LoadingState } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ApiError } from "@/lib/api/client";
 import { createForm, getForm, updateForm } from "../../api/forms";
 import {
@@ -133,21 +134,23 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-foreground">
-          {isEdit ? t("forms.editForm") : t("forms.newForm")}
-        </h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => router.push("/forms")}>
-            <X size={16} />
-            {t("common.cancel")}
-          </Button>
-          <Button loading={saving} onClick={save}>
-            <Save size={16} />
-            {t("common.save")}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/forms"
+        backLabel={t("common.back")}
+        title={isEdit ? t("forms.editForm") : t("forms.newForm")}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => router.push("/forms")}>
+              <X size={15} />
+              {t("common.cancel")}
+            </Button>
+            <Button variant="accent" loading={saving} onClick={save}>
+              <Save size={15} />
+              {t("common.save")}
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[12rem_1fr_20rem]">
         {/* Left: palette */}

@@ -11,8 +11,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       <LayoutProvider>
         <NotificationProvider>
           <ModalProvider>
-            {/* Toggle regions per-layout, e.g. <AppShell notifications={false}>. */}
-            <AppShell notifications={false}>{children}</AppShell>
+            <AppShell>{children}</AppShell>
           </ModalProvider>
         </NotificationProvider>
       </LayoutProvider>

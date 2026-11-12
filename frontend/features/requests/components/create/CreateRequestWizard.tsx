@@ -6,9 +6,9 @@ import { ArrowLeft, Check } from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { FormRenderer } from "@/features/forms/components/FormRenderer";
 import { useFormDefinition } from "@/features/forms/hooks/useFormDefinition";
 import { toRequestValues } from "@/features/forms/lib/values";
@@ -81,8 +81,6 @@ export function CreateRequestWizard() {
   const submit = async () => {
     if (!formId) return;
 
-    // The required final step must have at least one approver — it's the one
-    // who signs/approves to close the request.
     const finalStep = flowSteps[flowSteps.length - 1];
     if (!finalStep || finalStep.userIds.length === 0) {
       notify({ title: t("create.finalStepNeedsApprover"), kind: "error" });
@@ -91,8 +89,6 @@ export function CreateRequestWizard() {
 
     const steps = toCreateSteps(flowSteps);
 
-    // A signing document is mandatory: it must be uploaded AND every approver
-    // must have at least one signature position on it before creating.
     if (!useSigning) {
       notify({ title: t("signing.required"), kind: "error" });
       return;
@@ -108,9 +104,6 @@ export function CreateRequestWizard() {
 
     setSubmitting(true);
     try {
-      // Always create a DRAFT first: main documents are locked once the request
-      // is submitted, so they must be attached in craft mode (DRAFT). After the
-      // documents (and optional signing positions) are in place, submit.
       const created = await createRequest({
         formId,
         values: toRequestValues(values ?? {}),
@@ -164,13 +157,14 @@ export function CreateRequestWizard() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">
-        {t("create.title")}
-      </h1>
+      <PageHeader
+        backHref="/requests/duty"
+        backLabel={t("detail.back")}
+        title={t("create.title")}
+      >
+        <Stepper current={stepIdx} />
+      </PageHeader>
 
-      <Stepper current={stepIdx} />
-
-      {/* Step 1: select form */}
       {stepIdx === 0 && (
         <SelectFormStep
           selectedId={formId}
@@ -184,41 +178,41 @@ export function CreateRequestWizard() {
         />
       )}
 
-      {/* Step 2: fill form + attachments */}
+      {/* Step 2: unified grouped form & attachments workspace */}
       {stepIdx === 1 && (
-        <div className="space-y-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("create.mainDocuments")}</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <p className="mb-3 text-sm text-muted-foreground">
-                {t("create.mainDocumentsDesc")}
-              </p>
+        <div className="space-y-4">
+          <div className="divide-y divide-border-subtle rounded-lg border border-border bg-surface">
+            <section className="space-y-3 p-5">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">
+                  {t("create.mainDocuments")}
+                </h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t("create.mainDocumentsDesc")}
+                </p>
+              </div>
               <DocumentUpload files={mainFiles} onChange={setMainFiles} />
-            </CardBody>
-          </Card>
+            </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("create.secondaryDocuments")}</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <p className="mb-3 text-sm text-muted-foreground">
-                {t("create.secondaryDocumentsDesc")}
-              </p>
+            <section className="space-y-3 p-5">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">
+                  {t("create.secondaryDocuments")}
+                </h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t("create.secondaryDocumentsDesc")}
+                </p>
+              </div>
               <DocumentUpload
                 files={secondaryFiles}
                 onChange={setSecondaryFiles}
               />
-            </CardBody>
-          </Card>
+            </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{form?.name ?? t("create.stepFillForm")}</CardTitle>
-            </CardHeader>
-            <CardBody>
+            <section className="space-y-4 p-5">
+              <h2 className="text-sm font-semibold text-foreground">
+                {form?.name ?? t("create.stepFillForm")}
+              </h2>
               {formLoading || !form ? (
                 <LoadingState />
               ) : (
@@ -232,19 +226,19 @@ export function CreateRequestWizard() {
                   }}
                 />
               )}
-            </CardBody>
-          </Card>
+            </section>
+          </div>
 
           <div>
             <Button variant="outline" onClick={() => setStepIdx(0)}>
-              <ArrowLeft size={16} />
+              <ArrowLeft size={15} />
               {t("create.back")}
             </Button>
           </div>
         </div>
       )}
 
-      {/* Step 3: approval flow + viewers */}
+      {/* Step 3: approval flow + sticky action bar */}
       {stepIdx === 2 && user && (
         <div className="space-y-5">
           <ApprovalFlowBuilder
@@ -256,13 +250,13 @@ export function CreateRequestWizard() {
             signing={{ draft: signing, onChange: setSigning }}
           />
 
-          <div className="flex items-center justify-between">
+          <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-border bg-surface/95 py-3 backdrop-blur-sm">
             <Button variant="outline" onClick={() => setStepIdx(1)}>
-              <ArrowLeft size={16} />
+              <ArrowLeft size={15} />
               {t("create.back")}
             </Button>
-            <Button loading={submitting} onClick={submit}>
-              <Check size={16} />
+            <Button variant="accent" loading={submitting} onClick={submit}>
+              <Check size={15} />
               {submitting ? t("create.creating") : t("create.submit")}
             </Button>
           </div>
@@ -275,7 +269,7 @@ export function CreateRequestWizard() {
 function Stepper({ current }: { current: number }) {
   const t = useT();
   return (
-    <ol className="flex items-center gap-2">
+    <ol className="flex flex-wrap items-center gap-2 pt-1">
       {STEP_KEYS.map((key, i) => {
         const active = i === current;
         const done = i < current;
@@ -285,13 +279,13 @@ function Stepper({ current }: { current: number }) {
               className={cn(
                 "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
                 active
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-highlight text-highlight-foreground ring-2 ring-primary/20"
                   : done
-                    ? "bg-emerald-500 text-white"
-                    : "bg-muted text-muted-foreground",
+                    ? "bg-success text-white"
+                    : "bg-surface-secondary text-muted-foreground",
               )}
             >
-              {done ? <Check size={13} /> : i + 1}
+              {done ? <Check size={12} /> : i + 1}
             </span>
             <span
               className={cn(

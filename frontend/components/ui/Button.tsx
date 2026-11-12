@@ -3,8 +3,15 @@
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils/cn";
 
-type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger";
-type Size = "sm" | "md" | "lg" | "icon";
+type Variant =
+  | "primary"
+  | "accent"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger"
+  | "danger-solid";
+type Size = "xs" | "sm" | "md" | "lg" | "icon";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
@@ -15,24 +22,30 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+    "bg-primary text-primary-foreground hover:bg-primary/90",
+  accent:
+    "bg-highlight text-highlight-foreground hover:bg-highlight-hover font-semibold",
   secondary:
     "bg-secondary text-secondary-foreground hover:bg-secondary/80",
   outline:
-    "border border-border bg-card text-foreground hover:bg-muted",
-  ghost: "text-foreground/80 hover:bg-muted hover:text-foreground",
+    "border border-border bg-surface text-foreground hover:bg-surface-secondary",
+  ghost:
+    "text-muted-foreground hover:bg-surface-secondary hover:text-foreground",
   danger:
-    "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
+    "border border-danger-border bg-danger-subtle text-danger hover:bg-danger/15",
+  "danger-solid":
+    "bg-destructive text-destructive-foreground hover:bg-destructive/90",
 };
 
 const sizes: Record<Size, string> = {
+  xs: "h-7 px-2.5 text-xs gap-1",
   sm: "h-8 px-3 text-xs gap-1.5",
-  md: "h-9 px-4 text-sm gap-2",
-  lg: "h-11 px-6 text-sm gap-2",
-  icon: "h-9 w-9 justify-center",
+  md: "h-9 px-3.5 text-sm gap-2",
+  lg: "h-10 px-5 text-sm gap-2",
+  icon: "h-8 w-8 justify-center",
 };
 
-/** App button. Sky-blue primary by design; covers the common action variants. */
+/** Restrained enterprise action button with selective GAFOOD lime-gold accent support. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     { className, variant = "primary", size = "md", loading, disabled, children, ...props },
@@ -42,7 +55,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center rounded-md font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex cursor-pointer items-center justify-center rounded-md font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         sizes[size],
         className,

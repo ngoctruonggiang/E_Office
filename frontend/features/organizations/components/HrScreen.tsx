@@ -1,21 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Building2,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
 import { useModal } from "@/components/providers/ModalProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { Button } from "@/components/ui/Button";
-import { Spinner } from "@/components/ui/Spinner";
+import { LoadingState } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/utils/cn";
 import { ApiError } from "@/lib/api/client";
 import { useOrgTree } from "../hooks/useOrgTree";
@@ -28,9 +23,8 @@ import { MemberPanel } from "./MemberPanel";
 export type HrScreenProps = { rootId: string };
 
 /**
- * Two-column HR screen: organization structure (left, collapsible) + the
- * members of the selected node's subtree (right). Reachable only by an admin
- * or a manager of this company, so management controls are always enabled.
+ * Two-column HR screen: organization structure (left, neutral rail) +
+ * members of the selected node's subtree (right, white content surface).
  */
 export function HrScreen({ rootId }: HrScreenProps) {
   const t = useT();
@@ -43,12 +37,8 @@ export function HrScreen({ rootId }: HrScreenProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const flat = useMemo(() => (tree ? flattenTree(tree) : []), [tree]);
-
-  // Members get read-only access; managers/admins can mutate.
   const canManage = root?.canManage ?? false;
 
-  // Selection defaults to the root and falls back to it if the selected node
-  // disappears (e.g. it was just deleted).
   const effectiveId =
     selectedId && flat.some((n) => n.id === selectedId)
       ? selectedId
@@ -102,13 +92,7 @@ export function HrScreen({ rootId }: HrScreenProps) {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    );
-  }
+  if (loading) return <LoadingState />;
 
   if (error || !root || !tree) {
     return <EmptyState title={t("common.error")} />;
@@ -116,61 +100,43 @@ export function HrScreen({ rootId }: HrScreenProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/staff/organizations"
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={t("common.back")}
-        >
-          <ArrowLeft size={18} />
-        </Link>
-        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Building2 size={18} />
-        </span>
-        <h1 className="flex-1 text-xl font-semibold text-foreground">
-          {root.name}
-        </h1>
-      </div>
+      <PageHeader
+        backHref="/staff/organizations"
+        backLabel={t("common.back")}
+        title={root.name}
+        actions={
+          collapsed ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCollapsed(false)}
+            >
+              <PanelLeftOpen size={14} />
+              {t("staff.showStructure")}
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div
         className={cn(
           "grid gap-4",
-          // collapsed ? "lg:grid-cols-1" : "lg:grid-cols-[minmax(200px,360px)_1fr]",
-          collapsed ? "lg:grid-cols-[max-content_1fr]" : "lg:grid-cols-[minmax(max-content,280px)_1fr]",
+          collapsed ? "lg:grid-cols-1" : "lg:grid-cols-[280px_1fr]",
         )}
       >
-        {
-          collapsed && (<Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCollapsed((c) => !c)}
-        >
-          {collapsed ? (
-            <PanelLeftOpen size={15} />
-          ) : (
-            <PanelLeftClose size={15} />
-          )}
-          {collapsed ? t("staff.showStructure") : t("staff.hideStructure")}
-        </Button> )
-        }
-        {/* Left: structure */}
         {!collapsed && (
-          <div className="rounded-lg border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="font-semibold text-foreground">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface-secondary/50">
+            <div className="flex items-center justify-between border-b border-border-subtle px-3.5 py-2.5">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("staff.structure")}
               </h2>
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCollapsed((c) => !c)}
+                variant="ghost"
+                size="xs"
+                onClick={() => setCollapsed(true)}
+                title={t("staff.hideStructure")}
               >
-                {collapsed ? (
-                  <PanelLeftOpen size={15} />
-                ) : (
-                  <PanelLeftClose size={15} />
-                )}
-                {collapsed ? t("staff.showStructure") : t("staff.hideStructure")}
+                <PanelLeftClose size={14} />
               </Button>
             </div>
             <div className="p-2">
@@ -187,8 +153,7 @@ export function HrScreen({ rootId }: HrScreenProps) {
           </div>
         )}
 
-        {/* Right: members of the selected node's subtree */}
-        <div className="rounded-lg border border-border bg-card">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <MemberPanel
             nodeId={effectiveId}
             isLeaf={selectedIsLeaf}

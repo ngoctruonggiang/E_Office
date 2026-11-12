@@ -3,7 +3,7 @@
 import { useT } from "@/components/providers/I18nProvider";
 import { Badge } from "./Badge";
 
-/** Mirrors be RequestStatus enum (form_response.prisma). */
+/** Mirrors BE RequestStatus enum (form_response.prisma). */
 export type RequestStatus =
   | "DRAFT"
   | "PENDING"
@@ -24,8 +24,12 @@ const tone: Record<
   CANCELLED: "neutral",
 };
 
-/** Status pill with the localized status label (vi/en). */
+/** Compact status pill with dot indicator and localized label (vi/en). */
 export function StatusBadge({ status }: { status: RequestStatus }) {
   const t = useT();
-  return <Badge tone={tone[status]}>{t(`status.${status}`)}</Badge>;
+  return (
+    <Badge tone={tone[status]} dot>
+      {t(`status.${status}`)}
+    </Badge>
+  );
 }

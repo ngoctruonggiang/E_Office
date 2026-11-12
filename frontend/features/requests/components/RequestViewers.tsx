@@ -50,7 +50,7 @@ export function RequestViewers({
   };
 
   if (viewerIds.length === 0) {
-    return <EmptyState title={t("viewers.none")} />;
+    return <EmptyState compact title={t("viewers.none")} />;
   }
 
   return (
