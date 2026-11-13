@@ -28,6 +28,11 @@ export function getForm(id: string): Promise<FormDetail> {
   return apiFetch<FormDetail>(`/forms/${id}`);
 }
 
+/** Fetch a pinned FormVersion by its versionId (GET /forms/versions/:versionId). */
+export function getFormVersion(versionId: string): Promise<FormDetail> {
+  return apiFetch<FormDetail>(`/forms/versions/${versionId}`);
+}
+
 /** List form categories (GET /forms) — used by the form-type filter panel. */
 export function listForms(
   params: { name?: string; page?: number; limit?: number } = {},

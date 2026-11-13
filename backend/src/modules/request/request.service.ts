@@ -26,6 +26,7 @@ import {
   RequestDetailDto,
   RequestSummaryDto,
 } from './dto/request-response.dto';
+import { validateRequestValues } from '../form-builder/validators/form-value.validator';
 
 /** Include used to build a request summary (form id/name + version). */
 const summaryInclude = {
@@ -76,10 +77,21 @@ export class RequestService {
     const version = await this.prisma.formVersion.findFirst({
       where: { formId: dto.formId },
       orderBy: { version: 'desc' },
+      include: {
+        fields: { include: { options: true, validations: true } },
+      },
     });
     if (!version) {
       throw new NotFoundException('Form not found');
     }
+
+    const mode = dto.submit !== false ? 'strict' : 'draft';
+    const { sanitizedEntries } = validateRequestValues({
+      fields: version.fields,
+      layoutSchema: version.layoutSchema,
+      entries: dto.values,
+      mode,
+    });
 
     const created = await this.prisma.$transaction(async (tx) => {
       const response = await tx.formResponse.create({
@@ -89,9 +101,9 @@ export class RequestService {
           status: RequestStatus.DRAFT,
         },
       });
-      if (dto.values.length) {
+      if (sanitizedEntries.length) {
         await tx.formResponseValue.createMany({
-          data: dto.values.map((v) => ({
+          data: sanitizedEntries.map((v) => ({
             responseId: response.id,
             fieldKey: v.fieldKey,
             value: v.value as Prisma.InputJsonValue,
@@ -129,6 +141,14 @@ export class RequestService {
   ): Promise<RequestDetailDto> {
     const request = await this.prisma.formResponse.findUnique({
       where: { id },
+      include: {
+        values: true,
+        formVersion: {
+          include: {
+            fields: { include: { options: true, validations: true } },
+          },
+        },
+      },
     });
     if (!request) {
       throw new NotFoundException('Request not found');
@@ -142,17 +162,43 @@ export class RequestService {
       throw new BadRequestException('Only a draft request can be edited');
     }
 
+    const mergedMap = new Map<string, unknown>(
+      request.values.map((v) => [v.fieldKey, v.value]),
+    );
     for (const v of dto.values) {
+      mergedMap.set(v.fieldKey, v.value);
+    }
+    const { sanitizedEntries } = validateRequestValues({
+      fields: request.formVersion.fields,
+      layoutSchema: request.formVersion.layoutSchema,
+      entries: Array.from(mergedMap.entries()).map(([fieldKey, value]) => ({
+        fieldKey,
+        value,
+      })),
+      mode: 'draft',
+    });
+
+    const sanitizedMap = new Map(
+      sanitizedEntries.map((e) => [e.fieldKey, e.value]),
+    );
+    const keysToUpsert = new Set([
+      ...dto.values.map((v) => v.fieldKey),
+      ...sanitizedEntries.map((e) => e.fieldKey),
+    ]);
+
+    for (const fieldKey of keysToUpsert) {
+      if (!sanitizedMap.has(fieldKey)) continue;
+      const value = sanitizedMap.get(fieldKey);
       await this.prisma.formResponseValue.upsert({
         where: {
-          responseId_fieldKey: { responseId: id, fieldKey: v.fieldKey },
+          responseId_fieldKey: { responseId: id, fieldKey },
         },
         create: {
           responseId: id,
-          fieldKey: v.fieldKey,
-          value: v.value as Prisma.InputJsonValue,
+          fieldKey,
+          value: value as Prisma.InputJsonValue,
         },
-        update: { value: v.value as Prisma.InputJsonValue },
+        update: { value: value as Prisma.InputJsonValue },
       });
     }
     return this.getOne(id);
@@ -237,7 +283,15 @@ export class RequestService {
   ): Promise<RequestDetailDto> {
     const request = await this.prisma.formResponse.findUnique({
       where: { id },
-      include: { flowInstance: true },
+      include: {
+        flowInstance: true,
+        values: true,
+        formVersion: {
+          include: {
+            fields: { include: { options: true, validations: true } },
+          },
+        },
+      },
     });
     if (!request) {
       throw new NotFoundException('Request not found');
@@ -249,10 +303,36 @@ export class RequestService {
       throw new BadRequestException('Only a draft request can be submitted');
     }
 
+    const { sanitizedEntries, hiddenFieldKeys } = validateRequestValues({
+      fields: request.formVersion.fields,
+      layoutSchema: request.formVersion.layoutSchema,
+      entries: request.values.map((v) => ({
+        fieldKey: v.fieldKey,
+        value: v.value,
+      })),
+      mode: 'strict',
+    });
+
     // reserve clone: the flow was carried over with its approvals — don't rebuild
     // it. Just replace viewers and resume the flow from the change step.
     if (request.cloneMode === 'reserve' && request.flowInstance) {
       await this.prisma.$transaction(async (tx) => {
+        if (hiddenFieldKeys.size > 0) {
+          await tx.formResponseValue.deleteMany({
+            where: { responseId: id, fieldKey: { in: [...hiddenFieldKeys] } },
+          });
+        }
+        for (const entry of sanitizedEntries) {
+          await tx.formResponseValue.upsert({
+            where: { responseId_fieldKey: { responseId: id, fieldKey: entry.fieldKey } },
+            create: {
+              responseId: id,
+              fieldKey: entry.fieldKey,
+              value: entry.value as Prisma.InputJsonValue,
+            },
+            update: { value: entry.value as Prisma.InputJsonValue },
+          });
+        }
         await tx.requestViewer.deleteMany({ where: { responseId: id } });
         if (dto.viewerIds?.length) {
           await tx.requestViewer.createMany({
@@ -266,6 +346,22 @@ export class RequestService {
     }
 
     const flowId = await this.prisma.$transaction(async (tx) => {
+      if (hiddenFieldKeys.size > 0) {
+        await tx.formResponseValue.deleteMany({
+          where: { responseId: id, fieldKey: { in: [...hiddenFieldKeys] } },
+        });
+      }
+      for (const entry of sanitizedEntries) {
+        await tx.formResponseValue.upsert({
+          where: { responseId_fieldKey: { responseId: id, fieldKey: entry.fieldKey } },
+          create: {
+            responseId: id,
+            fieldKey: entry.fieldKey,
+            value: entry.value as Prisma.InputJsonValue,
+          },
+          update: { value: entry.value as Prisma.InputJsonValue },
+        });
+      }
       // Discard any pre-existing (un-started) flow state, then replace viewers.
       if (request.flowInstance) {
         await tx.task.deleteMany({

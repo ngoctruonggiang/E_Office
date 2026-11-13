@@ -1,8 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  Allow,
   ArrayMinSize,
   IsArray,
+  IsOptional,
   IsString,
   MinLength,
   ValidateNested,
@@ -21,4 +23,13 @@ export class CreateFormDto {
   @ValidateNested({ each: true })
   @Type(() => FormFieldInput)
   fields!: FormFieldInput[];
+
+  @ApiPropertyOptional({
+    type: Object,
+    nullable: true,
+    description: 'LayoutSchemaV1 JSON describing sections, 12-col rows, conditions, and attachment hints.',
+  })
+  @IsOptional()
+  @Allow()
+  layoutSchema?: unknown;
 }

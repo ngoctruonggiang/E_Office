@@ -1,0 +1,23 @@
+# 04 — Ma trận Truy vết Yêu cầu (Traceability Matrix)
+
+**Trạng thái:** `APPROVED` (Phase 0 & Phase 2 — `REQ-FRM-01`, `REQ-FRM-02` `VERIFIED`)
+
+Bảng này đảm bảo **mọi yêu cầu nghiệp vụ** đều đi từ Tài liệu đặc tả -> Code triển khai -> Kiểm thử tự động, không có tính năng "code chui" ngoài tài liệu và không có tài liệu "nằm trên giấy".
+
+| Req ID | Nhóm / Phase | Mô tả yêu cầu | Spec Document (`E_Office_Docs/`) | Target Code (`backend/` & `frontend/`) | Test Plan / Suite | Status |
+|---|---|---|---|---|---|---|
+| `REQ-GOV-01` | Phase 0 | Thiết lập cấu trúc `E_Office_Docs/`, ADR-001..005, quy trình Docs-First | `README.md`, `00-overview/*`, `03-checklists/*` | _(Không sửa code)_ | Doc review checklist | `VERIFIED` |
+| `REQ-IAM-01` | Phase 1 | Đăng nhập SSO qua Keycloak (OIDC) thông qua seam `AuthProvider` | `02-specs/phase-1-keycloak-identity/` *(chưa tạo)* | `backend/src/modules/auth/*`, `frontend/features/auth/*` | Auth OIDC integration test | `DRAFT` |
+| `REQ-IAM-02` | Phase 1 | Đồng bộ User + **Phòng ban** + **Chức danh** từ Keycloak/Org để hiển thị khi gán tác nhân | `02-specs/phase-1-keycloak-identity/` *(chưa tạo)* | `backend/prisma/schema/schema.prisma`, `user/*`, `organization/*` | Sync & directory E2E | `DRAFT` |
+| `REQ-FRM-01` | Phase 2 | Tách `LayoutSchema` (JSON) khỏi `FormField` trên `FormVersion`, giữ nguyên EAV `FormResponseValue` + Version Pinning (`GET /forms/versions/:versionId`) | `02-specs/phase-2-form-layout-engine/{prd,data-model,layout-schema-spec,api-contract,test-plan}.md` | `form.prisma`, `form-builder/*`, `frontend/features/forms/*`, `RequestFormData.tsx` | `TC-FRM-U01,U03,E01..E03,E07,F01,F03,F05` | `VERIFIED` |
+| `REQ-FRM-02` | Phase 2 | Hỗ trợ Grid nhiều cột, Section, Repeater (`TABLE` + `SUM`/`COUNT`), ẩn/hiện có điều kiện (`visibleWhen`) & Slot tài liệu (`attachmentSlot`) | `02-specs/phase-2-form-layout-engine/{prd,layout-schema-spec,api-contract,ui-wireframe-and-rules,test-plan}.md` | `form-builder/*`, `request/*`, `FormBuilderScreen`, `FormRenderer`, `TableFieldRenderer` | `TC-FRM-U02,U04..U09,E04..E06,F02,F04,F05` | `VERIFIED` |
+| `REQ-OPR-01` | Phase 3 | Kết nối headless Operaton REST API (`/engine-rest`), tách nhóm/tenant `e-Office` | `01-architecture/operaton-engine-contract.md`, `02-specs/phase-3-operaton-adapter/` | `backend/src/modules/operaton/*` *(mới)* | Operaton adapter integration test | `DRAFT` |
+| `REQ-OPR-02` | Phase 3 | Chuẩn BPMN hỗ trợ Tuần tự, Song song, Gateway điều kiện (`var_*`), Assignee động (`actor_*` / Multi-instance) | `02-specs/phase-3-operaton-adapter/bpmn-modeling-standards.md` | Mẫu BPMN deploy lên Operaton + `BpmnParserService` | BPMN execution test | `DRAFT` |
+| `REQ-PRC-01` | Phase 4 | Quản lý `Procedure` ghép `FormVersion` + `ProcessDefinition` (kéo qua API Operaton) | `02-specs/phase-4-procedure-mapping/` *(chưa tạo)* | `procedure.prisma` *(mới)*, `procedure/*`, FE Procedure Builder | Procedure CRUD & publish E2E | `DRAFT` |
+| `REQ-PRC-02` | Phase 4 | Map biến điều kiện (`field A` -> `giá trị`) và gán user mặc định kèm Phòng ban/Chức danh + `allowOverride` | `02-specs/phase-4-procedure-mapping/mapping-rules.md` | `ProcedureModule` + FE Mapping UI | Validation & mapping E2E | `DRAFT` |
+| `REQ-RUN-01` | Phase 5 | Người trình chọn `Procedure` mẫu, nhập Form layout mới, xem trước sơ đồ luồng & nhánh điều kiện dự kiến | `02-specs/phase-5-runtime-and-signing/` *(chưa tạo)* | `CreateRequestWizard`, `FlowPreview`, `RequestService` | Preview & start process E2E | `DRAFT` |
+| `REQ-RUN-02` | Phase 5 | Cho phép người trình **sửa/bổ sung người duyệt** trước khi gửi mà vẫn chạy đúng trên BPMN Operaton | `02-specs/phase-5-runtime-and-signing/flow-preview-and-override.md` | `RequestService`, `OperatonAdapterService`, FE Wizard | Override & multi-instance E2E | `DRAFT` |
+| `REQ-RUN-03` | Phase 5 | Đính kèm PDF + đặt `SignatureField` cho danh sách người duyệt thực tế; ký số PDF gắn với complete task Operaton | `02-specs/phase-5-runtime-and-signing/pdf-signing-integration.md` | `SignatureModule`, `SignDocumentModal`, `OperatonModule` | Sign-then-complete E2E | `DRAFT` |
+| `REQ-RUN-04` | Phase 5 | Đồng bộ vòng đời `REQUEST_CHANGES` / `REJECT` / `CANCEL` / `CLONE` giữa DB e-Office và Operaton | `02-specs/phase-5-runtime-and-signing/revise-cancel-lifecycle.md` | `RequestService`, `OperatonSyncService` | Revise & cancel lifecycle E2E | `DRAFT` |
+| `REQ-DYN-01` | Phase 6 | Gán tác nhân động theo Phòng ban / Chức danh (từ cây `Organization` & Keycloak attributes) | `02-specs/phase-6-dynamic-actor-and-hardening/` *(chưa tạo)* | `ActorResolverService`, `ProcedureModule` | Dynamic role resolution E2E | `DRAFT` |
+

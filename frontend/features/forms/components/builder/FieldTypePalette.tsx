@@ -1,46 +1,152 @@
 "use client";
 
-import { Type, Hash, Calendar, List, Plus } from "lucide-react";
+import {
+  Calendar,
+  FolderPlus,
+  Hash,
+  Heading,
+  List,
+  Minus,
+  Paperclip,
+  Plus,
+  Table2,
+  Type,
+} from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils/cn";
 import { FIELD_TYPES } from "../../types/builder";
-import type { FieldType } from "../../types/form";
+import type { FieldType, LayoutSection } from "../../types/form";
 
 const icons: Record<FieldType, React.ReactNode> = {
-  TEXT: <Type size={16} />,
-  NUMBER: <Hash size={16} />,
-  DATE: <Calendar size={16} />,
-  SELECT: <List size={16} />,
+  TEXT: <Type size={15} />,
+  NUMBER: <Hash size={15} />,
+  DATE: <Calendar size={15} />,
+  SELECT: <List size={15} />,
+  TABLE: <Table2 size={15} />,
 };
 
-/** Left column: click a field type to append it to the form. */
+export type LayoutBlockKind = "heading" | "divider" | "attachmentSlot";
+
+/** Left rail: field types, decorative/attachment layout blocks, and section outline. */
 export function FieldTypePalette({
-  onAdd,
+  sections,
+  activeSectionId,
+  onAddField,
+  onAddBlock,
+  onAddSection,
+  onSelectSection,
 }: {
-  onAdd: (type: FieldType) => void;
+  sections: LayoutSection[];
+  activeSectionId: string | null;
+  onAddField: (type: FieldType) => void;
+  onAddBlock: (kind: LayoutBlockKind) => void;
+  onAddSection: () => void;
+  onSelectSection: (sectionId: string) => void;
 }) {
   const t = useT();
+
   return (
-    <div className="space-y-2">
-      <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-        {t("formBuilder.fieldTypes")}
-      </p>
-      <div className="space-y-1.5">
-        {FIELD_TYPES.map((type) => (
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          {t("formBuilder.fieldTypes")}
+        </p>
+        <div className="space-y-1.5">
+          {FIELD_TYPES.map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => onAddField(type)}
+              className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+            >
+              <span className="text-muted-foreground group-hover:text-primary">
+                {icons[type]}
+              </span>
+              <span className="flex-1 text-left">{t(`fieldType.${type}`)}</span>
+              <Plus size={14} className="text-muted-foreground" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          {t("formBuilder.layoutBlocks")}
+        </p>
+        <div className="space-y-1.5">
           <button
-            key={type}
             type="button"
-            onClick={() => onAdd(type)}
-            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-muted"
+            onClick={() => onAddBlock("heading")}
+            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
           >
-            <span className="text-muted-foreground group-hover:text-primary">
-              {icons[type]}
-            </span>
-            <span className="flex-1 text-left">{t(`fieldType.${type}`)}</span>
+            <Heading size={15} className="text-muted-foreground group-hover:text-primary" />
+            <span className="flex-1 text-left">{t("formBuilder.headingBlock")}</span>
             <Plus size={14} className="text-muted-foreground" />
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => onAddBlock("divider")}
+            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+          >
+            <Minus size={15} className="text-muted-foreground group-hover:text-primary" />
+            <span className="flex-1 text-left">{t("formBuilder.dividerBlock")}</span>
+            <Plus size={14} className="text-muted-foreground" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onAddBlock("attachmentSlot")}
+            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+          >
+            <Paperclip size={15} className="text-muted-foreground group-hover:text-primary" />
+            <span className="flex-1 text-left">
+              {t("formBuilder.attachmentSlotBlock")}
+            </span>
+            <Plus size={14} className="text-muted-foreground" />
+          </button>
+        </div>
       </div>
-      <p className="px-1 pt-1 text-xs text-muted-foreground">
+
+      <div className="space-y-2 border-t border-border-subtle pt-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={onAddSection}
+        >
+          <FolderPlus size={14} />
+          {t("formBuilder.addSection")}
+        </Button>
+
+        {sections.length > 0 && (
+          <ul className="space-y-1 pt-1">
+            {sections.map((sec, idx) => (
+              <li key={sec.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectSection(sec.id)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs transition-colors",
+                    sec.id === activeSectionId
+                      ? "bg-highlight-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-surface-secondary hover:text-foreground",
+                  )}
+                >
+                  <span className="truncate">
+                    {idx + 1}. {sec.title || t("formBuilder.untitled")}
+                  </span>
+                  <span className="ml-2 shrink-0 text-[11px] tabular-nums">
+                    {sec.rows.reduce((sum, r) => sum + r.items.length, 0)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <p className="px-1 text-xs text-muted-foreground">
         {t("formBuilder.addFieldHint")}
       </p>
     </div>

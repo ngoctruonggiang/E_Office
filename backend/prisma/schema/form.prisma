@@ -3,6 +3,7 @@ enum FieldType {
   DATE
   NUMBER
   SELECT
+  TABLE
 }
 
 enum SelectMode {
@@ -40,10 +41,11 @@ model FormResponseValue {
 }
 
 model FormVersion {
-  id        String   @id @default(uuid())
-  formId    String
-  version   Int
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  formId       String
+  version      Int
+  layoutSchema Json?
+  createdAt    DateTime @default(now())
 
   form      Form           @relation(fields: [formId], references: [id])
   fields    FormField[]
@@ -73,6 +75,9 @@ model FormField {
 
   // SELECT
   selectMode SelectMode?
+
+  // TABLE
+  tableConfig Json?
 
   formVersion FormVersion @relation(fields: [formVersionId], references: [id])
 

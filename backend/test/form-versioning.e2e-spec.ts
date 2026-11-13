@@ -7,6 +7,7 @@ import {
   createForm,
   createRequest,
   getForm,
+  getFormVersion,
   getRequest,
   updateForm,
 } from './utils/api';
@@ -160,5 +161,101 @@ describe('Flow 3 — form update + versioning (e2e)', () => {
     }).expect(201);
     expect(newReq.body.version).toBe(2);
     expect(newReq.body.formVersionId).not.toBe(oldVersionId);
+  });
+
+  it('TC-FRM-E02: forks a new version when layoutSchema changes after responses exist, while GET /forms/versions/:versionId returns v1 pinned layout', async () => {
+    const v1Layout = {
+      schemaVersion: 1,
+      sections: [
+        {
+          id: 'sec_1',
+          title: 'V1 Layout',
+          rows: [
+            {
+              id: 'r1',
+              items: [
+                { id: 'i1', kind: 'field', fieldKey: 'reason', colSpan: 12 },
+                { id: 'i2', kind: 'field', fieldKey: 'days', colSpan: 12 },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    // Invalid row > 12 won't pass; keep row valid:
+    v1Layout.sections[0].rows = [
+      { id: 'r1', items: [{ id: 'i1', kind: 'field', fieldKey: 'reason', colSpan: 12 }] },
+      { id: 'r2', items: [{ id: 'i2', kind: 'field', fieldKey: 'days', colSpan: 12 }] },
+    ];
+
+    const created = await createForm(app, owner.accessToken, {
+      ...buildFormPayload(),
+      layoutSchema: v1Layout,
+    }).expect(201);
+    const formId = created.body.id;
+    const v1Id = created.body.versionId;
+
+    await createRequest(app, owner.accessToken, {
+      formId,
+      values: buildRequestValues(),
+    }).expect(201);
+
+    const v2Layout = {
+      schemaVersion: 1,
+      sections: [
+        {
+          id: 'sec_1',
+          title: 'V2 Compact Layout',
+          rows: [
+            {
+              id: 'r1',
+              items: [
+                { id: 'i1', kind: 'field', fieldKey: 'reason', colSpan: 6 },
+                { id: 'i2', kind: 'field', fieldKey: 'days', colSpan: 6 },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const bumped = await updateForm(app, owner.accessToken, formId, {
+      layoutSchema: v2Layout,
+    }).expect(200);
+    expect(bumped.body.version).toBe(2);
+    expect(bumped.body.layoutSchema.sections[0].title).toBe('V2 Compact Layout');
+
+    // Old version stays pinned with its v1 layout
+    const pinnedV1 = await getFormVersion(app, owner.accessToken, v1Id).expect(200);
+    expect(pinnedV1.body.version).toBe(1);
+    expect(pinnedV1.body.versionId).toBe(v1Id);
+    expect(pinnedV1.body.layoutSchema.sections[0].title).toBe('V1 Layout');
+  });
+
+  it('TC-FRM-E03: returns layoutSchema: null cleanly for forms without layoutSchema', async () => {
+    const created = await createForm(
+      app,
+      owner.accessToken,
+      buildFormPayload(),
+    ).expect(201);
+    expect(created.body.layoutSchema).toBeNull();
+
+    const fetchedLatest = await getForm(app, owner.accessToken, created.body.id).expect(200);
+    expect(fetchedLatest.body.layoutSchema).toBeNull();
+
+    const fetchedVersion = await getFormVersion(
+      app,
+      owner.accessToken,
+      created.body.versionId,
+    ).expect(200);
+    expect(fetchedVersion.body.layoutSchema).toBeNull();
+  });
+
+  it('TC-FRM-E07: returns 404 when requesting an unknown FormVersion id', async () => {
+    await getFormVersion(
+      app,
+      owner.accessToken,
+      '00000000-0000-0000-0000-000000000000',
+    ).expect(404);
   });
 });

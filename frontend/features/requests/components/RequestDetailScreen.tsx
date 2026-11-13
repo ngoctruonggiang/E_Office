@@ -408,6 +408,7 @@ export function RequestDetailScreen({ id }: { id: string }) {
                 <RequestFormData
                   requestId={detail.id}
                   formId={detail.formId}
+                  formVersionId={detail.formVersionId}
                   values={detail.values}
                   editing={editingForm}
                   onEditingChange={setEditingForm}
@@ -468,6 +469,7 @@ export function RequestDetailScreen({ id }: { id: string }) {
                 <RequestFormData
                   requestId={detail.id}
                   formId={detail.formId}
+                  formVersionId={detail.formVersionId}
                   values={detail.values}
                   editing={editingForm}
                   onEditingChange={setEditingForm}
@@ -500,6 +502,7 @@ export function RequestDetailScreen({ id }: { id: string }) {
                       <RequestFormData
                         requestId={detail.id}
                         formId={detail.formId}
+                        formVersionId={detail.formVersionId}
                         values={detail.values}
                         editing={editingForm}
                         onEditingChange={setEditingForm}

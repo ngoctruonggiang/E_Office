@@ -7,14 +7,14 @@ all workflow actions to `ApprovalEngineService` (injected via
 
 | Method | Signature | Behaviour |
 | --- | --- | --- |
-| `create` | `(userId, CreateRequestDto) → RequestDetailDto` | Resolves the form's latest version; in a transaction creates the `FormResponse` (`DRAFT`), `createMany` the EAV values, adds viewers, and — if `dto.steps` is given — builds a brand‑new `Flow`/`FlowStep`/`FlowAssignee` set for **this request only** (forms carry no fixed flow), then appends a required final `CLOSE` step assigned to the requestor (`finalStepName` label). If `submit !== false`, calls `engine.startFlow(responseId, flowId)`. |
-| `update` | `(userId, id, UpdateRequestDto) → RequestDetailDto` | Creator‑only, while `DRAFT`/`PENDING`/`REQUEST_CHANGES`. Upserts each value on the unique `(responseId, fieldKey)` key. |
+| `create` | `(userId, CreateRequestDto) → RequestDetailDto` | Resolves the form's latest version, runs `validateRequestValues` (`strict` when submitting immediately, `draft` when `submit: false`), recomputes `TABLE` aggregates, strips hidden conditional fields on submit, creates `FormResponse` + `FormResponseValue` + viewers + optional flow (`CLOSE` step appended), and calls `engine.startFlow`. |
+| `update` | `(userId, id, UpdateRequestDto) → RequestDetailDto` | Creator‑only, while `DRAFT`. Merges existing + incoming EAV values, runs `validateRequestValues(..., 'draft')`, syncs any recomputed `TABLE` aggregate targets, and upserts on `(responseId, fieldKey)`. |
 | `cloneReserve` | `(userId, id) → RequestDetailDto` | `clone(…, 'reserve')`. |
 | `cloneReset` | `(userId, id) → RequestDetailDto` | `clone(…, 'reset')`. |
 | `approve` | `(userId, id, ApprovalActionDto) → FlowStatusDto` | → `engine.act(userId, id, action)`. `REQUEST_CHANGES` pauses the flow and sets the request to `REQUEST_CHANGES`. |
 | `revise` | `(userId, id, mode) → RequestDetailDto` | Requestor‑only, while `REQUEST_CHANGES`. Clones (reset\|reserve) and CANCELs the original. `reserve` re‑opens the change step keeping earlier approvals. |
 | `resubmit` | `(userId, id) → RequestDetailDto` | Requestor‑only, while `REQUEST_CHANGES`. Discards the flow instance + tasks and restarts the same flow from step 1 (`PENDING`). |
-| `submitDraft` | `(userId, id, SubmitDraftDto) → RequestDetailDto` | Requestor‑only, `DRAFT` only. Replaces viewers, (re)builds the flow via `buildFlow`, and starts it. Finalizes an edited cloned draft. |
+| `submitDraft` | `(userId, id, SubmitDraftDto) → RequestDetailDto` | Requestor‑only, `DRAFT` only. Runs strict `validateRequestValues` against the pinned `FormVersion`, strips hidden conditional fields, syncs `TABLE` aggregates, replaces viewers, (re)builds the flow via `buildFlow` (unless `reserve` clone), and starts it. |
 | `cancelByRequestor` | `(userId, id) → RequestDetailDto` | Requestor‑only, while DRAFT/PENDING/REQUEST_CHANGES. Cancels pending tasks + marks the request `CANCELLED`. |
 | `requestChangesByRequestor` | `(userId, id) → RequestDetailDto` | Requestor‑only, while `PENDING`. Cancels pending tasks + sets `REQUEST_CHANGES` (pull‑back). |
 | `getHistory` | `(id) → RequestSummaryDto[]` | Walks `clonedFromId` to the root; returns the ancestor chain oldest → newest. |

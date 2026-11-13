@@ -10,20 +10,12 @@ Prisma transactions so a form is never left half‑built.
 | `createForm` | `(userId, CreateFormDto) → FormDetailDto` | Creates `Form` + `FormVersion(version: 1)` and all fields (with options/validations) in one transaction. |
 | `updateForm` | `(formId, UpdateFormDto) → FormDetailDto` | Updates `name`; for `fields`, decides new‑version vs in‑place (see rule below). |
 | `addOption` | `(formId, fieldId, AddOptionDto) → FormDetailDto` | Appends a `FieldOption`; throws `400` unless the field is `SELECT`, `404` if not on the form. |
-| `getForm` | `(formId) → FormDetailDto` | Loads the **latest** version with fields, options and validations, assembled for the frontend. |
+| `getForm` | `(formId) → FormDetailDto` | Loads the **latest** version with `layoutSchema`, fields, `tableConfig`, options and validations, assembled for the frontend. |
+| `getFormVersion` | `(versionId) → FormDetailDto` | Loads a **specific `FormVersion`** by id so historical requests render with their pinned layout/schema (ADR-005). |
 
-### Versioning rule (`updateForm`)
-```
-needsNewVersion = incoming fields .some(f =>
-    !current.has(f.key)        // a new field key, OR
- || current[f.key].type != f.type   // a field changed type
-)
-```
-- **true** → create `FormVersion(version + 1)` and rebuild fields from the
-  incoming set. Existing requests keep pointing at their old version.
-- **false** → update each existing field in place (label, required, placeholder,
-  min, max, maxLength, selectMode, defaultValue). Options/validations are not
-  diffed here — use `addOption` (add_item) for SELECT options.
+### Structural Validation & Versioning rule (`createForm` / `updateForm`)
+- `validateFormStructure(fields, layoutSchema)` (`validators/layout.validator.ts`) checks unique field keys, valid `TABLE` config & numeric aggregate targets, row `colSpan <= 12`, and acyclic `visibleWhen` dependency graph (returns `400` with structured `details[]`).
+- **Versioning rule (`updateForm`):** forks a new `FormVersion` whenever a field key is added/removed (structural change), `type` or `TABLE` columns change, OR the current version already has `responses > 0` and any field/layout edit is submitted. Otherwise (`responses === 0` with existing keys & matching types) updates scalars, `layoutSchema`, `tableConfig`, `options`, and `validations` **in place**.
 
 ### Helpers
 - `createFields(tx, versionId, fields)` — bulk‑creates fields, then

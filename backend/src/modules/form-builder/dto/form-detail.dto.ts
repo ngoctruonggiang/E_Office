@@ -55,6 +55,13 @@ export class FormFieldView {
   @ApiProperty({ enum: SelectMode, nullable: true })
   selectMode!: SelectMode | null;
 
+  @ApiProperty({
+    nullable: true,
+    type: Object,
+    description: 'TABLE fields only (columns, minRows, maxRows, summary).',
+  })
+  tableConfig!: unknown;
+
   @ApiProperty({ type: () => FieldOptionView, isArray: true })
   options!: FieldOptionView[];
 
@@ -74,6 +81,13 @@ export class FormDetailDto {
 
   @ApiProperty()
   versionId!: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: Object,
+    description: 'LayoutSchemaV1 JSON or null when using fallback layout.',
+  })
+  layoutSchema!: unknown;
 
   @ApiProperty({ type: () => FormFieldView, isArray: true })
   fields!: FormFieldView[];

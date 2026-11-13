@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  Allow,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -119,4 +120,14 @@ export class FormFieldInput {
   @ValidateNested({ each: true })
   @Type(() => FieldValidationInput)
   validations?: FieldValidationInput[];
+
+  // TABLE
+  @ApiPropertyOptional({
+    type: Object,
+    nullable: true,
+    description: 'TABLE fields only (columns, minRows, maxRows, addRowLabel, summary).',
+  })
+  @IsOptional()
+  @Allow()
+  tableConfig?: unknown;
 }

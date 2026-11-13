@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, X } from "lucide-react";
+import { Eye, LayoutGrid, Save, X } from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
 import { useNotifications } from "@/components/providers/NotificationProvider";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -11,18 +11,34 @@ import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
 import { LoadingState } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { cn } from "@/lib/utils/cn";
 import { ApiError } from "@/lib/api/client";
 import { createForm, getForm, updateForm } from "../../api/forms";
+import { normalizeLayoutSchema } from "../../lib/layout";
 import {
+  appendItemToSection,
+  buildLayoutPayload,
   draftFromView,
+  newAttachmentSlotItem,
+  newDividerItem,
   newField,
+  newFieldLayoutItem,
+  newHeadingItem,
+  newSection,
   toFieldInput,
+  uid,
+  type BuilderSelection,
   type FieldDraft,
 } from "../../types/builder";
-import type { FieldType } from "../../types/form";
-import { FieldTypePalette } from "./FieldTypePalette";
-import { FieldList } from "./FieldList";
-import { FieldConfigPanel } from "./FieldConfigPanel";
+import type {
+  FieldType,
+  LayoutItem,
+  LayoutSection,
+  VisibilityRuleGroup,
+} from "../../types/form";
+import { FieldTypePalette, type LayoutBlockKind } from "./FieldTypePalette";
+import { LayoutCanvas } from "./LayoutCanvas";
+import { LayoutInspectorPanel } from "./LayoutInspectorPanel";
 
 export function FormBuilderScreen({ formId }: { formId?: string }) {
   const t = useT();
@@ -32,7 +48,11 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
 
   const [name, setName] = useState("");
   const [fields, setFields] = useState<FieldDraft[]>([]);
-  const [selectedUid, setSelectedUid] = useState<string | null>(null);
+  const [sections, setSections] = useState<LayoutSection[]>(() => [
+    newSection("Thông tin chung"),
+  ]);
+  const [selection, setSelection] = useState<BuilderSelection>(null);
+  const [canvasMode, setCanvasMode] = useState<"design" | "preview">("design");
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
@@ -44,47 +64,290 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
         if (!active) return;
         setName(form.name);
         const drafts = form.fields.map(draftFromView);
+        const normalized = normalizeLayoutSchema(
+          form.name,
+          form.fields,
+          form.layoutSchema,
+        );
         setFields(drafts);
-        setSelectedUid(drafts[0]?.uid ?? null);
+        setSections(normalized.sections);
+        const firstSec = normalized.sections[0];
+        const firstItem = firstSec?.rows[0]?.items[0];
+        if (firstSec && firstItem) {
+          setSelection({
+            kind: "item",
+            sectionId: firstSec.id,
+            rowId: firstSec.rows[0].id,
+            itemId: firstItem.id,
+          });
+        } else if (firstSec) {
+          setSelection({ kind: "section", sectionId: firstSec.id });
+        }
       })
-      .catch(() =>
-        notify({ title: t("common.error"), kind: "error" }),
-      )
+      .catch(() => notify({ title: t("common.error"), kind: "error" }))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, [formId, notify, t]);
 
-  const genKey = () => {
+  const activeSectionId =
+    selection?.kind === "section" || selection?.kind === "item"
+      ? selection.sectionId
+      : (sections[sections.length - 1]?.id ?? null);
+
+  const genKey = (prefix = "field") => {
     const existing = new Set(fields.map((f) => f.key));
     let n = fields.length + 1;
-    let key = `field_${n}`;
-    while (existing.has(key)) key = `field_${++n}`;
+    let key = `${prefix}_${n}`;
+    while (existing.has(key)) key = `${prefix}_${++n}`;
     return key;
   };
 
   const addField = (type: FieldType) => {
-    const field = newField(type, genKey());
+    const key = genKey(type === "TABLE" ? "table" : "field");
+    const field = newField(type, key);
+    const defaultSpan = type === "TABLE" ? 12 : 6;
+    const item = newFieldLayoutItem(field.key, defaultSpan);
+
+    const { sections: nextSecs, sectionId, rowId } = appendItemToSection(
+      sections,
+      activeSectionId,
+      item,
+    );
     setFields((fs) => [...fs, field]);
-    setSelectedUid(field.uid);
+    setSections(nextSecs);
+    setSelection({ kind: "item", sectionId, rowId, itemId: item.id });
+    setCanvasMode("design");
   };
 
-  const updateField = (uid: string, patch: Partial<FieldDraft>) =>
-    setFields((fs) => fs.map((f) => (f.uid === uid ? { ...f, ...patch } : f)));
-
-  const deleteField = (uid: string) => {
-    setFields((fs) => fs.filter((f) => f.uid !== uid));
-    setSelectedUid((cur) => (cur === uid ? null : cur));
+  const addBlock = (kind: LayoutBlockKind) => {
+    const item =
+      kind === "heading"
+        ? newHeadingItem()
+        : kind === "divider"
+          ? newDividerItem()
+          : newAttachmentSlotItem(`slot_${Date.now().toString(36)}`);
+    const { sections: nextSecs, sectionId, rowId } = appendItemToSection(
+      sections,
+      activeSectionId,
+      item,
+    );
+    setSections(nextSecs);
+    setSelection({ kind: "item", sectionId, rowId, itemId: item.id });
+    setCanvasMode("design");
   };
 
-  const reorder = (from: number, to: number) =>
-    setFields((fs) => {
-      const next = [...fs];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
+  const addSection = () => {
+    const sec = newSection(`Nhóm ${sections.length + 1}`);
+    setSections((ss) => [...ss, sec]);
+    setSelection({ kind: "section", sectionId: sec.id });
+  };
+
+  const updateSection = (sectionId: string, patch: Partial<LayoutSection>) =>
+    setSections((ss) =>
+      ss.map((s) => (s.id === sectionId ? { ...s, ...patch } : s)),
+    );
+
+  const moveSection = (idx: number, delta: -1 | 1) => {
+    const nextIdx = idx + delta;
+    if (nextIdx < 0 || nextIdx >= sections.length) return;
+    setSections((ss) => {
+      const next = [...ss];
+      const [moved] = next.splice(idx, 1);
+      next.splice(nextIdx, 0, moved);
       return next;
     });
+  };
+
+  const deleteSection = (sectionId: string) => {
+    const target = sections.find((s) => s.id === sectionId);
+    if (!target || sections.length <= 1) return;
+    const removedKeys = new Set<string>();
+    for (const r of target.rows) {
+      for (const it of r.items) {
+        if (it.kind === "field") removedKeys.add(it.fieldKey);
+      }
+    }
+    setFields((fs) => fs.filter((f) => !removedKeys.has(f.key)));
+    setSections((ss) => ss.filter((s) => s.id !== sectionId));
+    setSelection((cur) =>
+      cur && cur.sectionId === sectionId ? null : cur,
+    );
+  };
+
+  const addRow = (sectionId: string) =>
+    setSections((ss) =>
+      ss.map((s) =>
+        s.id === sectionId
+          ? { ...s, rows: [...s.rows, { id: uid("row"), items: [] }] }
+          : s,
+      ),
+    );
+
+  const updateItem = (
+    sectionId: string,
+    rowId: string,
+    itemId: string,
+    patch: Partial<LayoutItem>,
+  ) =>
+    setSections((ss) =>
+      ss.map((s) =>
+        s.id !== sectionId
+          ? s
+          : {
+              ...s,
+              rows: s.rows.map((r) =>
+                r.id !== rowId
+                  ? r
+                  : {
+                      ...r,
+                      items: r.items.map((it) =>
+                        it.id === itemId ? ({ ...it, ...patch } as LayoutItem) : it,
+                      ),
+                    },
+              ),
+            },
+      ),
+    );
+
+  const moveItem = (
+    sectionId: string,
+    rowId: string,
+    itemId: string,
+    dir: "left" | "right" | "up" | "down",
+  ) => {
+    setSections((ss) =>
+      ss.map((sec) => {
+        if (sec.id !== sectionId) return sec;
+        const rows = sec.rows.map((r) => ({ ...r, items: [...r.items] }));
+        const rIdx = rows.findIndex((r) => r.id === rowId);
+        if (rIdx < 0) return sec;
+        const iIdx = rows[rIdx].items.findIndex((it) => it.id === itemId);
+        if (iIdx < 0) return sec;
+
+        if (dir === "left" && iIdx > 0) {
+          const [moved] = rows[rIdx].items.splice(iIdx, 1);
+          rows[rIdx].items.splice(iIdx - 1, 0, moved);
+        } else if (dir === "right" && iIdx < rows[rIdx].items.length - 1) {
+          const [moved] = rows[rIdx].items.splice(iIdx, 1);
+          rows[rIdx].items.splice(iIdx + 1, 0, moved);
+        } else if (dir === "up" || dir === "down") {
+          const targetRowIdx = dir === "up" ? rIdx - 1 : rIdx + 1;
+          if (targetRowIdx < 0 || targetRowIdx >= rows.length) return sec;
+          const moving = rows[rIdx].items[iIdx];
+          const targetUsed = rows[targetRowIdx].items.reduce(
+            (sum, x) => sum + x.colSpan,
+            0,
+          );
+          if (targetUsed + moving.colSpan > 12) return sec;
+          rows[rIdx].items.splice(iIdx, 1);
+          rows[targetRowIdx].items.push(moving);
+          setSelection({
+            kind: "item",
+            sectionId,
+            rowId: rows[targetRowIdx].id,
+            itemId,
+          });
+        }
+
+        return { ...sec, rows: rows.filter((r) => r.items.length > 0) };
+      }),
+    );
+  };
+
+  const deleteItem = (sectionId: string, rowId: string, itemId: string) => {
+    const sec = sections.find((s) => s.id === sectionId);
+    const row = sec?.rows.find((r) => r.id === rowId);
+    const target = row?.items.find((it) => it.id === itemId);
+
+    if (target?.kind === "field") {
+      setFields((fs) => fs.filter((f) => f.key !== target.fieldKey));
+    }
+
+    setSections((ss) =>
+      ss.map((s) =>
+        s.id !== sectionId
+          ? s
+          : {
+              ...s,
+              rows: s.rows
+                .map((r) =>
+                  r.id !== rowId
+                    ? r
+                    : { ...r, items: r.items.filter((i) => i.id !== itemId) },
+                )
+                .filter((r) => r.items.length > 0),
+            },
+      ),
+    );
+    setSelection((cur) =>
+      cur?.kind === "item" && cur.itemId === itemId ? null : cur,
+    );
+  };
+
+  const updateField = (fieldUid: string, patch: Partial<FieldDraft>) =>
+    setFields((fs) =>
+      fs.map((f) => (f.uid === fieldUid ? { ...f, ...patch } : f)),
+    );
+
+  const renameFieldKey = (
+    fieldUid: string,
+    oldKey: string,
+    newKey: string,
+  ) => {
+    setFields((fs) =>
+      fs.map((f) => {
+        if (f.uid === fieldUid) return { ...f, key: newKey };
+        if (f.type === "TABLE" && f.tableConfig?.summary?.aggregates) {
+          return {
+            ...f,
+            tableConfig: {
+              ...f.tableConfig,
+              summary: {
+                ...f.tableConfig.summary,
+                aggregates: f.tableConfig.summary.aggregates.map((agg) =>
+                  agg.targetFieldKey === oldKey
+                    ? { ...agg, targetFieldKey: newKey }
+                    : agg,
+                ),
+              },
+            },
+          };
+        }
+        return f;
+      }),
+    );
+
+    const renameVis = (
+      group: VisibilityRuleGroup | undefined,
+    ): VisibilityRuleGroup | undefined =>
+      group
+        ? {
+            ...group,
+            rules: group.rules.map((r) =>
+              r.fieldKey === oldKey ? { ...r, fieldKey: newKey } : r,
+            ),
+          }
+        : undefined;
+
+    setSections((ss) =>
+      ss.map((sec) => ({
+        ...sec,
+        visibleWhen: renameVis(sec.visibleWhen),
+        rows: sec.rows.map((r) => ({
+          ...r,
+          items: r.items.map((it) => ({
+            ...it,
+            ...(it.kind === "field" && it.fieldKey === oldKey
+              ? { fieldKey: newKey }
+              : {}),
+            visibleWhen: renameVis(it.visibleWhen),
+          })),
+        })),
+      })),
+    );
+  };
 
   const validate = (): string | null => {
     if (!name.trim()) return t("formBuilder.errors.nameRequired");
@@ -101,6 +364,12 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
       ) {
         return t("formBuilder.errors.optionsRequired");
       }
+      if (
+        f.type === "TABLE" &&
+        (!f.tableConfig || f.tableConfig.columns.length === 0)
+      ) {
+        return t("formBuilder.errors.tableColumnsRequired");
+      }
     }
     return null;
   };
@@ -113,7 +382,11 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
     }
     setSaving(true);
     try {
-      const payload = { name: name.trim(), fields: fields.map(toFieldInput) };
+      const payload = {
+        name: name.trim(),
+        fields: fields.map(toFieldInput),
+        layoutSchema: buildLayoutPayload(sections),
+      };
       if (isEdit && formId) await updateForm(formId, payload);
       else await createForm(payload);
       notify({ title: t("forms.saved"), kind: "success" });
@@ -130,8 +403,6 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
 
   if (loading) return <LoadingState />;
 
-  const selected = fields.find((f) => f.uid === selectedUid) ?? null;
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -139,7 +410,36 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
         backLabel={t("common.back")}
         title={isEdit ? t("forms.editForm") : t("forms.newForm")}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-md border border-border bg-surface-secondary p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setCanvasMode("design")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 font-medium transition-colors",
+                  canvasMode === "design"
+                    ? "bg-surface text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <LayoutGrid size={13} />
+                {t("formBuilder.designTab")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCanvasMode("preview")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 font-medium transition-colors",
+                  canvasMode === "preview"
+                    ? "bg-surface text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Eye size={13} />
+                {t("formBuilder.previewTab")}
+              </button>
+            </div>
+
             <Button variant="outline" onClick={() => router.push("/forms")}>
               <X size={15} />
               {t("common.cancel")}
@@ -148,15 +448,28 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
               <Save size={15} />
               {t("common.save")}
             </Button>
-          </>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[12rem_1fr_20rem]">
-        {/* Left: palette */}
-        <FieldTypePalette onAdd={addField} />
+      {isEdit && (
+        <div className="rounded-md border border-border-subtle bg-surface-secondary/50 px-3.5 py-2 text-xs text-muted-foreground">
+          {t("formBuilder.versionForkNotice")}
+        </div>
+      )}
 
-        {/* Middle: name + structure */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)_360px] lg:items-start">
+        <FieldTypePalette
+          sections={sections}
+          activeSectionId={activeSectionId}
+          onAddField={addField}
+          onAddBlock={addBlock}
+          onAddSection={addSection}
+          onSelectSection={(sectionId) =>
+            setSelection({ kind: "section", sectionId })
+          }
+        />
+
         <div className="space-y-4">
           <Field label={t("forms.namePlaceholder")} htmlFor="form-name" required>
             <Input
@@ -166,24 +479,36 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
               onChange={(e) => setName(e.target.value)}
             />
           </Field>
-          <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              {t("formBuilder.structure")}
-            </p>
-            <FieldList
-              fields={fields}
-              selectedUid={selectedUid}
-              onSelect={setSelectedUid}
-              onReorder={reorder}
-              onDelete={deleteField}
-            />
-          </div>
+
+          <LayoutCanvas
+            mode={canvasMode}
+            formName={name}
+            fields={fields}
+            sections={sections}
+            selection={selection}
+            onSelect={setSelection}
+            onMoveSection={moveSection}
+            onDeleteSection={deleteSection}
+            onAddRow={addRow}
+            onMoveItem={moveItem}
+            onSetItemColSpan={(sectionId, rowId, itemId, colSpan) =>
+              updateItem(sectionId, rowId, itemId, { colSpan })
+            }
+            onDeleteItem={deleteItem}
+          />
         </div>
 
-        {/* Right: field config */}
         <Card>
           <CardBody>
-            <FieldConfigPanel field={selected} onChange={updateField} />
+            <LayoutInspectorPanel
+              selection={selection}
+              sections={sections}
+              fields={fields}
+              onUpdateSection={updateSection}
+              onUpdateItem={updateItem}
+              onUpdateField={updateField}
+              onRenameFieldKey={renameFieldKey}
+            />
           </CardBody>
         </Card>
       </div>

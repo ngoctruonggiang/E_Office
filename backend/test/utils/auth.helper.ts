@@ -23,7 +23,8 @@ export function randomEmail(baseName: string = 'tester'): string {
   const mm = String(now.getMonth() + 1).padStart(2, '0'); // Tháng trong JS bắt đầu từ 0
   const yy = String(now.getFullYear()).slice(-2);
 
-  return `${baseName}_${dd}${mm}${yy}_${num}@test.local`;
+  const stamp = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  return `${baseName}_${dd}${mm}${yy}_${stamp}_${num}@test.local`;
 }
 
 const DEFAULT_PASSWORD = 'P@ssw0rd123';

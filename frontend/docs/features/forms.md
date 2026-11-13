@@ -9,30 +9,34 @@ backend.
 
 | Concern          | Backend source                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------- |
-| Form definition  | `GET /forms/:id` → `FormDetailDto` (`be/src/form-builder/dto/form-detail.dto.ts`)  |
-| Field shape      | `FormField` (`be/prisma/schema/form.prisma`)                                       |
-| Submit a request | `POST /requests` ← `CreateRequestDto` (`be/src/request/dto/create-request.dto.ts`) |
+| Form definition  | `GET /forms/:id` or `GET /forms/versions/:versionId` → `FormDetailDto` (`backend/src/modules/form-builder/dto/form-detail.dto.ts`) |
+| Field shape      | `FormField` + `FormVersion.layoutSchema` (`backend/prisma/schema/form.prisma`) |
+| Submit a request | `POST /requests` ← `CreateRequestDto` (`backend/src/modules/request/dto/create-request.dto.ts`) |
 
 Supported field types (`FieldType`): `TEXT`, `DATE`, `NUMBER`, `SELECT`
-(`selectMode` = `SINGLE` | `MULTIPLE`). Validations (`ValidationType`):
-`EMAIL`, `PHONE`, `REGEX`.
+(`selectMode` = `SINGLE` | `MULTIPLE`), and `TABLE` (repeater/sub-table with `tableConfig`). Validations (`ValidationType`):
+`EMAIL`, `PHONE`, `REGEX`. Layout uses `LayoutSchemaV1` (Sections, 12-col Grid, Heading, Divider, AttachmentSlot hints, `visibleWhen`).
 
 ## File map
 
 ```
 features/forms/
 ├── components/
-│   ├── FormRenderer.tsx        # the engine: state, validation, submit
-│   └── FormFieldRenderer.tsx   # one field → label + type-specific control + error
+│   ├── FormRenderer.tsx        # layout-aware runtime: sections, 12-col grid, visibility, submit
+│   ├── FormFieldRenderer.tsx   # GAFOOD UI primitives wrapper per field type
+│   ├── TableFieldRenderer.tsx  # TABLE repeater control + aggregates footer (edit & read-only)
+│   └── builder/                # 3-column Layout & Form Builder + Live Preview
 ├── api/
-│   └── forms.ts                # getForm(id), submitRequest(input)
+│   └── forms.ts                # getForm(id), getFormVersion(versionId), submitRequest(input)
 ├── hooks/
-│   └── useFormDefinition.ts    # client-side form loader (loading/error/data)
+│   └── useFormDefinition.ts    # useFormDefinition(id) & useFormVersion(versionId)
 ├── lib/
-│   ├── validation.ts           # validateField / validateForm
-│   └── values.ts               # build/convert form ↔ EAV values
+│   ├── layout.ts               # normalizeLayoutSchema, evaluateVisibility, aggregates, cycle detection
+│   ├── validation.ts           # validateField / validateTableField / validateFormWithDetails
+│   └── values.ts               # build/convert form ↔ EAV values, filterVisibleValues
 ├── types/
-│   └── form.ts                 # FE mirror of the backend DTO
+│   ├── form.ts                 # FE mirror of backend FormDetailDto & LayoutSchemaV1
+│   └── builder.ts              # Builder drafts, section/row helpers
 └── index.ts                    # public surface
 ```
 
@@ -166,8 +170,7 @@ import { fromRequestValues } from "@/features/forms";
 
 - **New field type:** add it to `FieldType` in `types/form.ts`, render a control
   in `FormFieldRenderer`, and add validation in `lib/validation.ts`.
-- **Custom widgets:** `FormFieldRenderer` uses native inputs styled with
-  Tailwind; swap them for shared `components/ui` primitives as they're built.
+- **Custom widgets:** `FormFieldRenderer` and `TableFieldRenderer` use shared `components/ui/*` primitives (`Field`, `Input`, `Select`, `Badge`, `Button`) and GAFOOD semantic theme tokens.
 
 ## Related
 

@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  Allow,
   IsArray,
   IsOptional,
   IsString,
@@ -10,9 +11,9 @@ import {
 import { FormFieldInput } from './form-field.input';
 
 /**
- * Updating a form. If any field changes `type` or a new `key` appears, the
- * service creates a NEW version; otherwise it updates the current version
- * in place (labels, required, placeholder, …).
+ * Updating a form. Structural changes, or any field/layout change on a version
+ * that already has responses, fork a NEW version; scalar/layout tweaks on an
+ * unused version patch in place.
  */
 export class UpdateFormDto {
   @ApiPropertyOptional()
@@ -27,4 +28,13 @@ export class UpdateFormDto {
   @ValidateNested({ each: true })
   @Type(() => FormFieldInput)
   fields?: FormFieldInput[];
+
+  @ApiPropertyOptional({
+    type: Object,
+    nullable: true,
+    description: 'LayoutSchemaV1 JSON or null to reset to auto-layout.',
+  })
+  @IsOptional()
+  @Allow()
+  layoutSchema?: unknown;
 }

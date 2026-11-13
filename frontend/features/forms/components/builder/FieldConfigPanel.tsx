@@ -9,14 +9,22 @@ import { Button } from "@/components/ui/Button";
 import type { FieldDraft } from "../../types/builder";
 import { VALIDATION_TYPES } from "../../types/builder";
 import type { SelectMode, ValidationType } from "../../types/form";
+import { TableConfigEditor } from "./TableConfigEditor";
 
 export type FieldConfigPanelProps = {
   field: FieldDraft | null;
+  allFields: FieldDraft[];
   onChange: (uid: string, patch: Partial<FieldDraft>) => void;
+  onRenameKey?: (uid: string, oldKey: string, newKey: string) => void;
 };
 
-/** Right column: settings for the currently selected field. */
-export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
+/** Data & validation settings for a FieldDraft. */
+export function FieldConfigPanel({
+  field,
+  allFields,
+  onChange,
+  onRenameKey,
+}: FieldConfigPanelProps) {
   const t = useT();
 
   if (!field) {
@@ -32,7 +40,7 @@ export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
 
   return (
     <div className="space-y-4">
-      <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
         {t("formBuilder.config")} · {t(`fieldType.${field.type}`)}
       </p>
 
@@ -52,9 +60,14 @@ export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
         <Input
           id="cfg-key"
           value={field.key}
-          onChange={(e) =>
-            patch({ key: e.target.value.replace(/\s+/g, "_") })
-          }
+          onChange={(e) => {
+            const nextKey = e.target.value.replace(/\s+/g, "_");
+            if (onRenameKey) {
+              onRenameKey(field.uid, field.key, nextKey);
+            } else {
+              patch({ key: nextKey });
+            }
+          }}
         />
       </Field>
 
@@ -68,7 +81,6 @@ export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
         {t("formBuilder.required")}
       </label>
 
-      {/* TEXT */}
       {field.type === "TEXT" && (
         <>
           <Field label={t("formBuilder.maxLength")} htmlFor="cfg-maxlen">
@@ -90,7 +102,6 @@ export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
         </>
       )}
 
-      {/* NUMBER */}
       {field.type === "NUMBER" && (
         <>
           <div className="grid grid-cols-2 gap-3">
@@ -121,7 +132,6 @@ export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
         </>
       )}
 
-      {/* SELECT */}
       {field.type === "SELECT" && (
         <>
           <Field label={t("formBuilder.selectMode")}>
@@ -137,6 +147,10 @@ export function FieldConfigPanel({ field, onChange }: FieldConfigPanelProps) {
           </Field>
           <OptionsEditor field={field} onChange={patch} />
         </>
+      )}
+
+      {field.type === "TABLE" && (
+        <TableConfigEditor field={field} allFields={allFields} onChange={patch} />
       )}
     </div>
   );
@@ -181,7 +195,7 @@ function OptionsEditor({
             onClick={() =>
               onChange({ options: field.options.filter((_, idx) => idx !== i) })
             }
-            className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+            className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-surface-secondary hover:text-danger"
           >
             <X size={15} />
           </button>
@@ -255,7 +269,7 @@ function ValidationsEditor({
                   validations: field.validations.filter((_, idx) => idx !== i),
                 })
               }
-              className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+              className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-surface-secondary hover:text-danger"
             >
               <X size={15} />
             </button>

@@ -4,10 +4,12 @@ import type {
   FormValues,
   RequestValue,
 } from "../types/form";
+import { applyTableAggregates } from "./layout";
 
 /** The empty value for a field when there is no default or initial value. */
 function emptyValue(field: FormFieldView): unknown {
   if (field.type === "SELECT" && field.selectMode === "MULTIPLE") return [];
+  if (field.type === "TABLE") return [];
   return "";
 }
 
@@ -29,15 +31,32 @@ export function buildInitialValues(
       values[field.key] = emptyValue(field);
     }
   }
-  return values;
+  return applyTableAggregates(form.fields, values);
 }
 
-/** Convert form state into the EAV array the backend expects. */
-export function toRequestValues(values: FormValues): RequestValue[] {
-  return Object.entries(values).map(([fieldKey, value]) => ({
-    fieldKey,
-    value,
-  }));
+/** Convert form state into the EAV array the backend expects, optionally stripping hidden keys. */
+export function toRequestValues(
+  values: FormValues,
+  visibleKeys?: Set<string>,
+): RequestValue[] {
+  return Object.entries(values)
+    .filter(([fieldKey]) => !visibleKeys || visibleKeys.has(fieldKey))
+    .map(([fieldKey, value]) => ({
+      fieldKey,
+      value,
+    }));
+}
+
+/** Filter a FormValues map down to only visible field keys. */
+export function filterVisibleValues(
+  values: FormValues,
+  visibleKeys: Set<string>,
+): FormValues {
+  const next: FormValues = {};
+  for (const [k, v] of Object.entries(values)) {
+    if (visibleKeys.has(k)) next[k] = v;
+  }
+  return next;
 }
 
 /** Convert a request's EAV values back into keyed form state (for editing). */

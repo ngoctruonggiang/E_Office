@@ -89,6 +89,15 @@ export class FormBuilderController {
     return this.formBuilder.addOption(id, fieldId, dto);
   }
 
+  /** Get a specific historical or active FormVersion by its versionId (ADR-005). */
+  @Get('versions/:versionId')
+  @ApiOperation({ summary: 'Get a specific form version by versionId' })
+  @ApiParam({ name: 'versionId', description: 'FormVersion id' })
+  @ApiOkResponse({ type: FormDetailDto })
+  getVersion(@Param('versionId') versionId: string): Promise<FormDetailDto> {
+    return this.formBuilder.getFormVersion(versionId);
+  }
+
   /** Assembled latest version for rendering in the frontend. */
   @Get(':id')
   @ApiOperation({ summary: "Get a form's latest version" })

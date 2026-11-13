@@ -19,6 +19,16 @@ import {
   FormFieldView,
   FormSummaryDto,
 } from './dto/form-detail.dto';
+import { LayoutSchemaV1, TableFieldConfig } from './layout-schema.types';
+import { validateFormStructure } from './validators/layout.validator';
+
+const VERSION_INCLUDE = {
+  fields: { include: { options: true, validations: true } },
+} as const;
+
+type LoadedVersion = Prisma.FormVersionGetPayload<{
+  include: typeof VERSION_INCLUDE;
+}>;
 
 @Injectable()
 export class FormBuilderService {
@@ -70,8 +80,10 @@ export class FormBuilderService {
     };
   }
 
-  /** Create a form (category) with its first version + fields. */
+  /** Create a form (category) with its first version + fields + optional layout. */
   async createForm(userId: string, dto: CreateFormDto): Promise<FormDetailDto> {
+    validateFormStructure(dto.fields, dto.layoutSchema);
+
     const formId = await this.prisma.$transaction(async (tx) => {
       const form = await tx.form.create({
         data: {
@@ -80,7 +92,11 @@ export class FormBuilderService {
         },
       });
       const version = await tx.formVersion.create({
-        data: { formId: form.id, version: 1 },
+        data: {
+          formId: form.id,
+          version: 1,
+          ...this.nullableJsonColumn('layoutSchema', dto.layoutSchema),
+        },
       });
       await this.createFields(tx, version.id, dto.fields);
       return form.id;
@@ -90,36 +106,97 @@ export class FormBuilderService {
   }
 
   /**
-   * Update a form. Changing a field's `type` or adding a new field `key`
-   * produces a NEW version (old requests keep pointing at their version).
-   * Otherwise the current version's fields are updated in place.
+   * Update a form following ADR-005 & Phase 2 data-model versioning policy:
+   * - Name-only update keeps the current version.
+   * - Adding/removing keys, changing field type, changing TABLE columns, or
+   *   any field/layout edit when responses > 0 forks a NEW FormVersion.
+   * - Otherwise (0 responses, existing keys & matching types) patches in place.
    */
   async updateForm(formId: string, dto: UpdateFormDto): Promise<FormDetailDto> {
-    const current = await this.getLatestVersionOrThrow(formId);
+    const current = await this.prisma.formVersion.findFirst({
+      where: { formId },
+      orderBy: { version: 'desc' },
+      include: {
+        ...VERSION_INCLUDE,
+        _count: { select: { responses: true } },
+      },
+    });
+    if (!current) {
+      throw new NotFoundException('Form not found');
+    }
 
-    await this.prisma.$transaction(async (tx) => {
-      if (dto.name !== undefined) {
-        await tx.form.update({
-          where: { id: formId },
-          data: { name: dto.name },
-        });
-      }
+    const hasFieldsPatch = Boolean(dto.fields && dto.fields.length > 0);
+    const hasLayoutPatch = dto.layoutSchema !== undefined;
+    const hasResponses = current._count.responses > 0;
 
-      if (dto.fields && dto.fields.length > 0) {
-        const existingByKey = new Map(current.fields.map((f) => [f.key, f]));
-        const needsNewVersion = dto.fields.some((f) => {
+    if (hasFieldsPatch || hasLayoutPatch) {
+      const existingByKey = new Map(current.fields.map((f) => [f.key, f]));
+      const incomingFields = dto.fields ?? [];
+      const incomingKeys = new Set(incomingFields.map((f) => f.key));
+
+      const hasStructuralFieldChange =
+        hasFieldsPatch &&
+        (incomingFields.some((f) => {
           const prev = existingByKey.get(f.key);
-          return !prev || prev.type !== f.type; // new field or type change
-        });
+          if (!prev || prev.type !== f.type) return true;
+          if (f.type === FieldType.TABLE && f.tableConfig !== undefined) {
+            return !this.tableColumnsEqual(prev.tableConfig, f.tableConfig);
+          }
+          return false;
+        }) ||
+          ((hasLayoutPatch || hasResponses) &&
+            current.fields.some((prev) => !incomingKeys.has(prev.key))));
+
+      const needsNewVersion =
+        hasStructuralFieldChange ||
+        (hasResponses && (hasFieldsPatch || hasLayoutPatch));
+
+      const fieldsForValidation = hasFieldsPatch
+        ? needsNewVersion
+          ? incomingFields
+          : this.mergePatchFields(current.fields, incomingFields)
+        : this.toFieldInputs(current.fields);
+
+      const layoutForValidation = hasLayoutPatch
+        ? dto.layoutSchema
+        : needsNewVersion && hasFieldsPatch
+          ? this.pruneLayoutToKeys(
+              current.layoutSchema as LayoutSchemaV1 | null,
+              incomingKeys,
+            )
+          : current.layoutSchema;
+
+      validateFormStructure(fieldsForValidation, layoutForValidation);
+
+      await this.prisma.$transaction(async (tx) => {
+        if (dto.name !== undefined) {
+          await tx.form.update({
+            where: { id: formId },
+            data: { name: dto.name },
+          });
+        }
 
         if (needsNewVersion) {
+          const fieldsToCreate = hasFieldsPatch
+            ? incomingFields
+            : this.toFieldInputs(current.fields);
           const version = await tx.formVersion.create({
-            data: { formId, version: current.version + 1 },
+            data: {
+              formId,
+              version: current.version + 1,
+              ...this.nullableJsonColumn('layoutSchema', layoutForValidation),
+            },
           });
-          await this.createFields(tx, version.id, dto.fields);
+          await this.createFields(tx, version.id, fieldsToCreate);
         } else {
-          // In-place scalar updates only (options/validations via add_item).
-          for (const f of dto.fields) {
+          if (hasLayoutPatch) {
+            await tx.formVersion.update({
+              where: { id: current.id },
+              data: this.nullableJsonColumn('layoutSchema', dto.layoutSchema),
+            });
+          }
+          for (const f of incomingFields) {
+            const existing = existingByKey.get(f.key)!;
             await tx.formField.update({
               where: {
                 formVersionId_key: { formVersionId: current.id, key: f.key },
@@ -133,12 +210,53 @@ export class FormBuilderService {
                 max: f.max ?? null,
                 selectMode: f.selectMode ?? null,
                 ...this.jsonField('defaultValue', f.defaultValue),
+                ...(f.type === FieldType.TABLE
+                  ? this.nullableJsonColumn('tableConfig', f.tableConfig)
+                  : { tableConfig: Prisma.DbNull }),
               },
             });
+
+            if (f.options !== undefined) {
+              await tx.fieldOption.deleteMany({ where: { fieldId: existing.id } });
+              if (f.options.length > 0) {
+                await tx.fieldOption.createMany({
+                  data: f.options.map((o) => ({
+                    fieldId: existing.id,
+                    label: o.label,
+                    value: o.value,
+                  })),
+                });
+              }
+            }
+
+            if (f.validations !== undefined) {
+              await tx.fieldValidation.deleteMany({
+                where: { fieldId: existing.id },
+              });
+              if (f.validations.length > 0) {
+                await tx.fieldValidation.createMany({
+                  data: f.validations.map((v) => ({
+                    fieldId: existing.id,
+                    type: v.type,
+                    regex: v.regex ?? null,
+                  })),
+                });
+              }
+            }
           }
         }
-      }
-    });
+      });
+
+      return this.getForm(formId);
+    }
+
+    // Name-only update
+    if (dto.name !== undefined) {
+      await this.prisma.form.update({
+        where: { id: formId },
+        data: { name: dto.name },
+      });
+    }
 
     return this.getForm(formId);
   }
@@ -176,9 +294,7 @@ export class FormBuilderService {
         versions: {
           orderBy: { version: 'desc' },
           take: 1,
-          include: {
-            fields: { include: { options: true, validations: true } },
-          },
+          include: VERSION_INCLUDE,
         },
       },
     });
@@ -191,11 +307,39 @@ export class FormBuilderService {
       throw new NotFoundException('Form has no versions');
     }
 
+    return this.serializeVersion(form.id, form.name, version);
+  }
+
+  /** Assembled specific FormVersion by its id (pinned rendering, ADR-005). */
+  async getFormVersion(versionId: string): Promise<FormDetailDto> {
+    const version = await this.prisma.formVersion.findUnique({
+      where: { id: versionId },
+      include: {
+        form: { select: { id: true, name: true } },
+        ...VERSION_INCLUDE,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Form version not found');
+    }
+
+    return this.serializeVersion(version.form.id, version.form.name, version);
+  }
+
+  // ── helpers ────────────────────────────────────────────────────────────
+
+  private serializeVersion(
+    formId: string,
+    formName: string,
+    version: LoadedVersion,
+  ): FormDetailDto {
     return {
-      id: form.id,
-      name: form.name,
+      id: formId,
+      name: formName,
       version: version.version,
       versionId: version.id,
+      layoutSchema: version.layoutSchema ?? null,
       fields: version.fields.map(
         (f): FormFieldView => ({
           id: f.id,
@@ -209,6 +353,7 @@ export class FormBuilderService {
           min: f.min,
           max: f.max,
           selectMode: f.selectMode,
+          tableConfig: f.type === FieldType.TABLE ? (f.tableConfig ?? null) : null,
           options: f.options.map(
             (o): FieldOptionView => ({
               id: o.id,
@@ -223,8 +368,6 @@ export class FormBuilderService {
       ),
     };
   }
-
-  // ── helpers ────────────────────────────────────────────────────────────
 
   private async createFields(
     tx: Prisma.TransactionClient,
@@ -245,6 +388,9 @@ export class FormBuilderService {
           max: f.max ?? null,
           selectMode: f.selectMode ?? null,
           ...this.jsonField('defaultValue', f.defaultValue),
+          ...(f.type === FieldType.TABLE
+            ? this.nullableJsonColumn('tableConfig', f.tableConfig)
+            : {}),
         },
       });
 
@@ -269,16 +415,77 @@ export class FormBuilderService {
     }
   }
 
-  private async getLatestVersionOrThrow(formId: string) {
-    const version = await this.prisma.formVersion.findFirst({
-      where: { formId },
-      orderBy: { version: 'desc' },
-      include: { fields: true },
+  private toFieldInputs(fields: LoadedVersion['fields']): FormFieldInput[] {
+    return fields.map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      required: f.required,
+      defaultValue: f.defaultValue ?? undefined,
+      maxLength: f.maxLength ?? undefined,
+      placeholder: f.placeholder ?? undefined,
+      min: f.min ?? undefined,
+      max: f.max ?? undefined,
+      selectMode: f.selectMode ?? undefined,
+      tableConfig: f.type === FieldType.TABLE ? (f.tableConfig ?? undefined) : undefined,
+      options: f.options.map((o) => ({ label: o.label, value: o.value })),
+      validations: f.validations.map((v) => ({
+        type: v.type,
+        regex: v.regex ?? undefined,
+      })),
+    }));
+  }
+
+  private mergePatchFields(
+    currentFields: LoadedVersion['fields'],
+    incomingFields: FormFieldInput[],
+  ): FormFieldInput[] {
+    const incomingMap = new Map(incomingFields.map((f) => [f.key, f]));
+    return currentFields.map((prev) => {
+      const patched = incomingMap.get(prev.key);
+      if (!patched) return this.toFieldInputs([prev])[0];
+      return {
+        ...this.toFieldInputs([prev])[0],
+        ...patched,
+        options:
+          patched.options ??
+          prev.options.map((o) => ({ label: o.label, value: o.value })),
+        validations:
+          patched.validations ??
+          prev.validations.map((v) => ({
+            type: v.type,
+            regex: v.regex ?? undefined,
+          })),
+      };
     });
-    if (!version) {
-      throw new NotFoundException('Form not found');
-    }
-    return version;
+  }
+
+  private tableColumnsEqual(prevRaw: unknown, nextRaw: unknown): boolean {
+    const prevCols = (prevRaw as TableFieldConfig | null)?.columns ?? [];
+    const nextCols = (nextRaw as TableFieldConfig | null)?.columns ?? [];
+    return JSON.stringify(prevCols) === JSON.stringify(nextCols);
+  }
+
+  private pruneLayoutToKeys(
+    layout: LayoutSchemaV1 | null | undefined,
+    allowedKeys: Set<string>,
+  ): LayoutSchemaV1 | null {
+    if (!layout) return null;
+    const sections = layout.sections
+      .map((sec) => ({
+        ...sec,
+        rows: sec.rows
+          .map((row) => ({
+            ...row,
+            items: row.items.filter(
+              (item) => item.kind !== 'field' || allowedKeys.has(item.fieldKey),
+            ),
+          }))
+          .filter((row) => row.items.length > 0),
+      }))
+      .filter((sec) => sec.rows.length > 0);
+
+    return sections.length > 0 ? { ...layout, sections } : null;
   }
 
   /** Build a Json column patch, mapping `undefined` to "leave unset". */
@@ -287,6 +494,16 @@ export class FormBuilderService {
     value: unknown,
   ): Record<string, Prisma.InputJsonValue> | object {
     if (value === undefined) return {};
+    return { [name]: value as Prisma.InputJsonValue };
+  }
+
+  private nullableJsonColumn(
+    name: 'layoutSchema' | 'tableConfig',
+    value: unknown,
+  ): Record<string, Prisma.InputJsonValue | typeof Prisma.DbNull> {
+    if (value === undefined || value === null) {
+      return { [name]: Prisma.DbNull };
+    }
     return { [name]: value as Prisma.InputJsonValue };
   }
 }

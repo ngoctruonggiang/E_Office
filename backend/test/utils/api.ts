@@ -24,6 +24,16 @@ export function getForm(app: INestApplication, token: string, formId: string) {
     .set('Authorization', bearer(token));
 }
 
+export function getFormVersion(
+  app: INestApplication,
+  token: string,
+  versionId: string,
+) {
+  return request(app.getHttpServer())
+    .get(`/forms/versions/${versionId}`)
+    .set('Authorization', bearer(token));
+}
+
 export function updateForm(
   app: INestApplication,
   token: string,
@@ -126,6 +136,18 @@ export function cloneReset(app: INestApplication, token: string, id: string) {
   return request(app.getHttpServer())
     .post(`/requests/${id}/clone-reset`)
     .set('Authorization', bearer(token));
+}
+
+export function submitDraft(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body: unknown = {},
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/submit`)
+    .set('Authorization', bearer(token))
+    .send(body);
 }
 
 // ── approval-flow controller (read-only status) ────────────────────────────

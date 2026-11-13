@@ -219,6 +219,10 @@ export function CreateRequestWizard() {
                 <FormRenderer
                   form={form}
                   initialValues={values ?? undefined}
+                  attachmentCounts={{
+                    MAIN: mainFiles.length + (signing.file ? 1 : 0),
+                    SECONDARY: secondaryFiles.length,
+                  }}
                   submitLabel={t("create.next")}
                   onSubmit={(_, raw) => {
                     setValues(raw);
