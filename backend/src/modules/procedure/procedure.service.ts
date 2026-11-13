@@ -446,7 +446,7 @@ export class ProcedureService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       // 1. Update ProcedureVersion core fields
       await tx.procedureVersion.update({
         where: { id: versionId },
