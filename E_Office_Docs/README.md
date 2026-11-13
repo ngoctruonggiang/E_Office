@@ -43,21 +43,31 @@ E_Office_Docs/
 │   ├── 02-glossary.md                         # Từ điển thuật ngữ thống nhất
 │   ├── 03-roadmap-phases.md                   # Lộ trình Phase 0 -> Phase 6 (Entry/Exit/Risks)
 │   ├── 04-traceability-matrix.md              # Ma trận truy vết Req <-> Spec <-> Code <-> Test
+│   ├── 05-operaton-workflow-architecture-and-modeler.md # Phân tích chuyên sâu Operaton Engine vs Modeler & Tích hợp
 │   └── adr/
 │       ├── ADR-001-form-layout-json.md        # Tách Data Schema (EAV) & Layout JSON Schema
 │       ├── ADR-002-operaton-variable-conventions.md  # Chuẩn biến BPMN & REST Server-to-Server
 │       ├── ADR-003-requestor-actor-override.md       # Người trình xem trước & sửa tác nhân
 │       ├── ADR-004-state-sync-and-revise-lifecycle.md # Đồng bộ trạng thái & Revise/Cancel trên BPMN
-│       └── ADR-005-version-pinning.md         # Ghim phiên bản FormVersion + Procedure + ProcessDef
-├── 01-architecture/                           # Bổ sung ở Phase 1 & 3 (chi tiết network, Keycloak, Operaton)
+│       ├── ADR-005-version-pinning.md         # Ghim phiên bản FormVersion + Procedure + ProcessDef
+│       └── ADR-006-operaton-deployment-and-modeler-strategy.md # Triển khai Docker-first & Công cụ vẽ workflow 2 lớp
+├── 01-architecture/                           # Thiết kế chi tiết hệ thống & hợp đồng liên dịch vụ
+│   └── operaton-engine-contract.md            # [APPROVED] Hợp đồng kết nối Server-to-Server e-Office <-> Operaton
 ├── 02-specs/                                  # Đặc tả chi tiết từng Phase (mở khóa từng phase theo thứ tự)
-│   └── phase-2-form-layout-engine/            # [VERIFIED] Phase 2: Flexible Form & Layout Engine
-│       ├── prd.md                             # Mục tiêu, User Stories, Phạm vi & Ràng buộc
-│       ├── data-model.md                      # Prisma FieldType.TABLE, layoutSchema, tableConfig & Version Fork Policy
-│       ├── layout-schema-spec.md              # LayoutSchemaV1, visibleWhen AST, TABLE config & Fallback normalizer
-│       ├── api-contract.md                    # Endpoints (/forms/versions/:versionId) & Request EAV Validator
-│       ├── ui-wireframe-and-rules.md          # GAFOOD × RAMP FormBuilder 3 cột, Live Preview, FormRenderer & i18n
-│       └── test-plan.md                       # Unit, E2E & UI verification cases (TC-FRM-*)
+│   ├── phase-2-form-layout-engine/            # [VERIFIED] Phase 2: Flexible Form & Layout Engine
+│   │   ├── prd.md                             # Mục tiêu, User Stories, Phạm vi & Ràng buộc
+│   │   ├── data-model.md                      # Prisma FieldType.TABLE, layoutSchema, tableConfig & Version Fork Policy
+│   │   ├── layout-schema-spec.md              # LayoutSchemaV1, visibleWhen AST, TABLE config & Fallback normalizer
+│   │   ├── api-contract.md                    # Endpoints (/forms/versions/:versionId) & Request EAV Validator
+│   │   ├── ui-wireframe-and-rules.md          # GAFOOD × RAMP FormBuilder 3 cột, Live Preview, FormRenderer & i18n
+│   │   └── test-plan.md                       # Unit, E2E & UI verification cases (TC-FRM-*)
+│   └── phase-3-operaton-adapter/              # [APPROVED] Phase 3: Operaton Adapter & BPMN Engine
+│       ├── prd.md                             # Mục tiêu, Phạm vi & Acceptance Criteria
+│       ├── docker-setup-spec.md               # Cấu hình Docker Compose, operaton_db & healthcheck
+│       ├── bpmn-modeling-standards.md         # Quy chuẩn đặt tên biến, UserTask, Gateway & Multi-instance
+│       ├── api-contract.md                    # API Endpoints (/operaton/*) & Operaton REST client
+│       ├── web-modeler-spec.md                # Đặc tả Web BPMN Modeler (nhúng bpmn-js trên e-Office)
+│       └── test-plan.md                       # Kế hoạch test container, parser, execution & error handling
 └── 03-checklists/
     ├── doc-review-checklist.md                # Cổng duyệt tài liệu trước khi code
     └── code-compliance-checklist.md           # Cổng kiểm tra code khớp tài liệu trước khi đóng Phase

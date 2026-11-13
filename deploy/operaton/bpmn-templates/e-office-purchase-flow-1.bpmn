@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_Purchase_Flow_1"
+                  targetNamespace="e-Office"
+                  exporter="GAFOOD E-Office Workflow Modeler"
+                  exporterVersion="1.0.0">
+  <bpmn:process id="eoffice_proc_purchase_flow_1" name="Quy trình Nghiệp vụ: Yêu cầu Mua sắm (FLOW 1)" isExecutable="true" camunda:versionTag="1.0.0" camunda:historyTimeToLive="180">
+    <bpmn:documentation>Quy trình trình ký yêu cầu mua sắm chuẩn e-Office: rẽ nhánh theo hạn mức 50 triệu và tuần tự duyệt qua Trưởng phòng và Người duyệt cuối.</bpmn:documentation>
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="category" value="e-Office" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+
+    <!-- 1. Sự kiện Bắt đầu (Người trình nộp đơn) -->
+    <bpmn:startEvent id="start_event_requestor" name="Người trình nộp yêu cầu" camunda:initiator="requestorId">
+      <bpmn:outgoing>flow_start_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="flow_start_to_gw" sourceRef="start_event_requestor" targetRef="gateway_check_value" />
+
+    <!-- 2. Cổng Rẽ nhánh Điều kiện: Xét giá trị (var_amount) -->
+    <bpmn:exclusiveGateway id="gateway_check_value" name="Xét giá trị đề xuất">
+      <bpmn:incoming>flow_start_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_high_value</bpmn:outgoing>
+      <bpmn:outgoing>flow_low_value</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Nhánh Giá trị cao: var_amount >= 50.000.000 -->
+    <bpmn:sequenceFlow id="flow_high_value" name="Giá trị &gt;= 50 triệu" sourceRef="gateway_check_value" targetRef="step_review_1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${var_amount >= 50000000}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Nhánh Giá trị thấp: var_amount < 50.000.000 -->
+    <bpmn:sequenceFlow id="flow_low_value" name="Giá trị &lt; 50 triệu" sourceRef="gateway_check_value" targetRef="step_review_2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${var_amount < 50000000}]]></bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- 3. Bước Xem xét 1 (Ban Tài chính / Kế toán trưởng) -->
+    <bpmn:userTask id="step_review_1" name="Xem xét 1 (Ban Tài chính / Kế toán trưởng)" camunda:assignee="${actor_step_review_1}">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="defaultRole" value="Kế toán trưởng" />
+          <camunda:property name="allowOverride" value="true" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_high_value</bpmn:incoming>
+      <bpmn:outgoing>flow_rev1_to_join</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- 4. Bước Xem xét 2 (Chuyên viên Mua sắm cơ bản) -->
+    <bpmn:userTask id="step_review_2" name="Xem xét 2 (Chuyên viên Mua sắm)" camunda:assignee="${actor_step_review_2}">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="defaultRole" value="Chuyên viên mua sắm" />
+          <camunda:property name="allowOverride" value="true" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_low_value</bpmn:incoming>
+      <bpmn:outgoing>flow_rev2_to_join</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- 5. Cổng Hội tụ -->
+    <bpmn:exclusiveGateway id="gateway_join_value" name="Hội tụ xét duyệt">
+      <bpmn:incoming>flow_rev1_to_join</bpmn:incoming>
+      <bpmn:incoming>flow_rev2_to_join</bpmn:incoming>
+      <bpmn:outgoing>flow_join_to_dept</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="flow_rev1_to_join" sourceRef="step_review_1" targetRef="gateway_join_value" />
+    <bpmn:sequenceFlow id="flow_rev2_to_join" sourceRef="step_review_2" targetRef="gateway_join_value" />
+    <bpmn:sequenceFlow id="flow_join_to_dept" sourceRef="gateway_join_value" targetRef="step_department_head" />
+
+    <!-- 6. Bước Trưởng phòng phê duyệt -->
+    <bpmn:userTask id="step_department_head" name="Trưởng phòng phê duyệt" camunda:assignee="${actor_step_dept_head}">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="defaultRole" value="Trưởng phòng ban" />
+          <camunda:property name="allowOverride" value="false" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_join_to_dept</bpmn:incoming>
+      <bpmn:outgoing>flow_dept_to_final</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="flow_dept_to_final" sourceRef="step_department_head" targetRef="step_final_approver" />
+
+    <!-- 7. Bước Người duyệt cuối (Ban Giám đốc) -->
+    <bpmn:userTask id="step_final_approver" name="Người duyệt cuối (Ban Giám đốc)" camunda:assignee="${actor_step_final_approver}">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="defaultRole" value="Ban Giám đốc" />
+          <camunda:property name="allowOverride" value="false" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_dept_to_final</bpmn:incoming>
+      <bpmn:outgoing>flow_final_to_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="flow_final_to_end" sourceRef="step_final_approver" targetRef="end_approved" />
+
+    <!-- 8. Sự kiện Kết thúc Hoàn thành -->
+    <bpmn:endEvent id="end_approved" name="Hoàn thành phê duyệt">
+      <bpmn:incoming>flow_final_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Purchase_Flow_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_Purchase_Flow_1" bpmnElement="eoffice_proc_purchase_flow_1">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent" bpmnElement="start_event_requestor">
+        <dc:Bounds x="160" y="200" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="145" y="243" width="67" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_GW_Check" bpmnElement="gateway_check_value" isMarkerVisible="true">
+        <dc:Bounds x="260" y="193" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="245" y="163" width="81" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_Task_Rev1" bpmnElement="step_review_1">
+        <dc:Bounds x="380" y="110" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_Task_Rev2" bpmnElement="step_review_2">
+        <dc:Bounds x="380" y="250" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_GW_Join" bpmnElement="gateway_join_value" isMarkerVisible="true">
+        <dc:Bounds x="575" y="193" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="563" y="163" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_Task_Dept" bpmnElement="step_department_head">
+        <dc:Bounds x="680" y="178" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_Task_Final" bpmnElement="step_final_approver">
+        <dc:Bounds x="860" y="178" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="_BPMNShape_EndEvent" bpmnElement="end_approved">
+        <dc:Bounds x="1042" y="200" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1032" y="243" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Edge_Start_to_GW" bpmnElement="flow_start_to_gw">
+        <di:waypoint x="196" y="218" />
+        <di:waypoint x="260" y="218" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_GW_to_Rev1" bpmnElement="flow_high_value">
+        <di:waypoint x="285" y="193" />
+        <di:waypoint x="285" y="150" />
+        <di:waypoint x="380" y="150" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="283" y="133" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_GW_to_Rev2" bpmnElement="flow_low_value">
+        <di:waypoint x="285" y="243" />
+        <di:waypoint x="285" y="290" />
+        <di:waypoint x="380" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="284" y="293" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_Rev1_to_Join" bpmnElement="flow_rev1_to_join">
+        <di:waypoint x="510" y="150" />
+        <di:waypoint x="600" y="150" />
+        <di:waypoint x="600" y="193" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_Rev2_to_Join" bpmnElement="flow_rev2_to_join">
+        <di:waypoint x="510" y="290" />
+        <di:waypoint x="600" y="290" />
+        <di:waypoint x="600" y="243" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_Join_to_Dept" bpmnElement="flow_join_to_dept">
+        <di:waypoint x="625" y="218" />
+        <di:waypoint x="680" y="218" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_Dept_to_Final" bpmnElement="flow_dept_to_final">
+        <di:waypoint x="810" y="218" />
+        <di:waypoint x="860" y="218" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Edge_Final_to_End" bpmnElement="flow_final_to_end">
+        <di:waypoint x="990" y="218" />
+        <di:waypoint x="1042" y="218" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

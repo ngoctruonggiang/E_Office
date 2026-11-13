@@ -46,7 +46,54 @@ export function updateForm(
     .send(body);
 }
 
-// ── requests ─────────────────────────────────────────────────────────────
+// ── operaton ─────────────────────────────────────────────────────────────
+
+export function getOperatonHealth(app: INestApplication, token: string) {
+  return request(app.getHttpServer())
+    .get('/operaton/health')
+    .set('Authorization', bearer(token));
+}
+
+export function getOperatonDefinitions(
+  app: INestApplication,
+  token: string,
+  category = 'e-Office',
+) {
+  return request(app.getHttpServer())
+    .get(`/operaton/definitions?category=${encodeURIComponent(category)}`)
+    .set('Authorization', bearer(token));
+}
+
+export function getOperatonDefinitionXml(
+  app: INestApplication,
+  token: string,
+  definitionId: string,
+) {
+  return request(app.getHttpServer())
+    .get(`/operaton/definitions/${encodeURIComponent(definitionId)}/xml`)
+    .set('Authorization', bearer(token));
+}
+
+export function getOperatonDefinitionStructure(
+  app: INestApplication,
+  token: string,
+  definitionId: string,
+) {
+  return request(app.getHttpServer())
+    .get(`/operaton/definitions/${encodeURIComponent(definitionId)}/structure`)
+    .set('Authorization', bearer(token));
+}
+
+export function deployOperatonWorkflow(
+  app: INestApplication,
+  token: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post('/operaton/deploy')
+    .set('Authorization', bearer(token))
+    .send(body);
+}
 
 export function createRequest(
   app: INestApplication,

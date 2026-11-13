@@ -54,15 +54,19 @@ flowchart LR
   - Nâng cấp `FormBuilderScreen`, `FormRenderer`, `RequestFormData` (`frontend`).
   - Test Plan: Backward-compatibility với form cũ, validation repeater/hidden fields, build & E2E form versioning.
 
-### Phase 3 — Operaton Workflow Engine Adapter & Chuẩn BPMN
+### Phase 3 — Operaton Workflow Engine Adapter, Công cụ Thiết kế & Chuẩn BPMN
 - **Entry Criteria:** Phase 0 được duyệt (`APPROVED`).
 - **Lượt A (Spec — `01-architecture/operaton-engine-contract.md` + `02-specs/phase-3-operaton-adapter/`):**
-  - Chuẩn dựng môi trường Operaton (Docker Compose dev + kết nối `/engine-rest`, phân nhóm/tenant `e-Office`).
+  - Chiến lược triển khai Operaton Engine độc lập bằng Docker Compose (`operaton/operaton:latest`) kết nối chung PostgreSQL (CSDL riêng `operaton_db`), không clone Java source vào monorepo (xem [ADR-006](./adr/ADR-006-operaton-deployment-and-modeler-strategy.md)).
+  - Chiến lược công cụ thiết kế luồng (Modeler): hướng dẫn cấu hình **Operaton Modeler** (desktop) và thiết kế module **Web BPMN Modeler (nhúng `bpmn-js`)** trên web e-Office cho phép vẽ và deploy BPMN trực tiếp qua API.
+  - Phân loại nhóm/tenant: cô lập luồng thuộc nhóm `category="e-Office"` khỏi các khối nghiệp vụ khác (`Sales Marketing`, `Customer Service`).
   - Tài liệu hướng dẫn vẽ BPMN chuẩn cho nhóm `e-Office` (`bpmn-modeling-standards.md`): quy ước `taskDefinitionKey`, biến điều kiện `var_*`, biến gán người `actor_*` / `actorList_*` (Multi-instance), xử lý `REQUEST_CHANGES` / `REJECT` / `CANCEL`.
-  - Hợp đồng `OperatonAdapterService` (server-to-server: list definitions, parse BPMN XML, start instance, query tasks, complete task, cancel instance, cơ chế sync listener/polling).
+  - Hợp đồng `OperatonAdapterService` (server-to-server: list definitions, parse BPMN XML, deploy BPMN XML, start instance, query tasks, complete task, cancel instance, cơ chế sync listener/polling).
 - **Lượt B (Code & Verify):**
-  - Dựng container Operaton dev + 1-2 mẫu BPMN chuẩn (ví dụ mẫu `FLOW 1` rẽ nhánh `giá trị` + song song + tuần tự).
-  - Xây dựng `OperatonModule` (`OperatonClient`, `BpmnParserService`, `OperatonSyncService`) kèm integration test với Operaton thật.
+  - Dựng container Operaton dev (`deploy/operaton/docker-compose.yml`) + 1-2 mẫu BPMN chuẩn (ví dụ mẫu `FLOW 1` rẽ nhánh `giá trị` + song song + tuần tự).
+  - Triển khai `OperatonModule` (`backend`: `OperatonClient`, `BpmnParserService`, `OperatonSyncService`).
+  - Triển khai Web BPMN Modeler cơ bản trên `frontend` (`features/workflow/components/WebBpmnModeler.tsx` sử dụng `bpmn-js`) hỗ trợ vẽ luồng và bấm phát hành sang Operaton.
+  - Test Plan: Integration test với Operaton Engine thật qua REST API (deploy, parse, start, task complete).
 
 ### Phase 4 — Lớp Cầu nối `Procedure` (Mapping Form + Workflow + Tác nhân + Tham số)
 - **Entry Criteria:** Phase 1, Phase 2 và Phase 3 đạt `VERIFIED`.
