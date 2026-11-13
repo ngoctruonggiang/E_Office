@@ -119,47 +119,96 @@ export function ProcedureBuilder({ versionId }: ProcedureBuilderProps) {
 
   const isReadOnly = versionDetail?.status !== 'DRAFT';
 
+  // Helper to persist current draft to backend
+  const persistDraft = async (overrides?: {
+    formVersionId?: string | null;
+    operatonDefinitionId?: string | null;
+    actorMappings?: ProcedureActorMapping[];
+    variableMappings?: ProcedureVariableMapping[];
+  }): Promise<ProcedureVersionDetail | null> => {
+    if (!versionDetail) return null;
+
+    const targetFormVersionId =
+      overrides?.formVersionId !== undefined ? overrides.formVersionId : selectedFormVersionId;
+    const targetWorkflowDefId =
+      overrides?.operatonDefinitionId !== undefined
+        ? overrides.operatonDefinitionId
+        : selectedWorkflowDefId;
+    const targetActorMappings =
+      overrides?.actorMappings !== undefined ? overrides.actorMappings : actorMappings;
+    const targetVarMappings =
+      overrides?.variableMappings !== undefined ? overrides.variableMappings : variableMappings;
+
+    // 1. Update general info if procedure exists
+    if (versionDetail.procedureId) {
+      await updateProcedure(versionDetail.procedureId, {
+        name: generalInfo.name,
+        description: generalInfo.description,
+        icon: generalInfo.icon,
+        color: generalInfo.color,
+        departmentId: generalInfo.departmentId || undefined,
+      });
+    }
+
+    // 2. Update version mappings
+    const updated = await saveProcedureVersionDraft(versionId, {
+      formVersionId: targetFormVersionId || undefined,
+      operatonDefinitionId: targetWorkflowDefId || undefined,
+      actorMappings: targetActorMappings.map((am, idx) => ({
+        taskDefinitionKey: am.taskDefinitionKey,
+        taskName: am.taskName,
+        order: idx + 1,
+        assigneeType: am.assigneeType,
+        defaultUserId: am.defaultUserId || null,
+        ruleConfig: am.ruleConfig,
+        allowOverride: am.allowOverride,
+        required: am.required,
+        isMultiInstance: am.isMultiInstance,
+        collectionVariable: am.collectionVariable,
+      })),
+      variableMappings: targetVarMappings.map((vm) => ({
+        operatonVarName: vm.operatonVarName,
+        formFieldKey: vm.formFieldKey,
+        variableType: vm.variableType,
+        fallbackValue: vm.fallbackValue || null,
+      })),
+    });
+
+    setVersionDetail(updated);
+
+    // Auto-seed actor mappings for new workflow tasks if not present
+    if (updated.workflow?.tasks && updated.workflow.tasks.length > 0) {
+      const existingKeys = new Set(targetActorMappings.map((m) => m.taskDefinitionKey));
+      const unmappedTasks = updated.workflow.tasks.filter((t) => !existingKeys.has(t.taskKey || t.id));
+      if (unmappedTasks.length > 0) {
+        const seeded: ProcedureActorMapping[] = [
+          ...targetActorMappings,
+          ...unmappedTasks.map((t, idx) => ({
+            taskDefinitionKey: t.taskKey || t.id,
+            taskName: t.name || t.taskKey || t.id,
+            order: targetActorMappings.length + idx + 1,
+            assigneeType: 'DIRECT_USER' as const,
+            defaultUserId: null,
+            defaultUser: null,
+            allowOverride: true,
+            required: true,
+            isMultiInstance: t.isMultiInstance || false,
+            collectionVariable: t.collectionVariable || null,
+          })),
+        ];
+        setActorMappings(seeded);
+      }
+    }
+
+    return updated;
+  };
+
   // Handle saving draft
   const handleSaveDraft = async () => {
     if (!versionDetail) return;
     setIsSaving(true);
     try {
-      // 1. Update general info if procedure exists
-      if (versionDetail.procedureId) {
-        await updateProcedure(versionDetail.procedureId, {
-          name: generalInfo.name,
-          description: generalInfo.description,
-          icon: generalInfo.icon,
-          color: generalInfo.color,
-          departmentId: generalInfo.departmentId || undefined,
-        });
-      }
-
-      // 2. Update version mappings
-      const updated = await saveProcedureVersionDraft(versionId, {
-        formVersionId: selectedFormVersionId || undefined,
-        operatonDefinitionId: selectedWorkflowDefId || undefined,
-        actorMappings: actorMappings.map((am, idx) => ({
-          taskDefinitionKey: am.taskDefinitionKey,
-          taskName: am.taskName,
-          order: idx + 1,
-          assigneeType: am.assigneeType,
-          defaultUserId: am.defaultUserId || null,
-          ruleConfig: am.ruleConfig,
-          allowOverride: am.allowOverride,
-          required: am.required,
-          isMultiInstance: am.isMultiInstance,
-          collectionVariable: am.collectionVariable,
-        })),
-        variableMappings: variableMappings.map((vm) => ({
-          operatonVarName: vm.operatonVarName,
-          formFieldKey: vm.formFieldKey,
-          variableType: vm.variableType,
-          fallbackValue: vm.fallbackValue || null,
-        })),
-      });
-
-      setVersionDetail(updated);
+      await persistDraft();
       alert('Đã lưu bản nháp thủ tục thành công!');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Lỗi không xác định khi lưu';
@@ -173,6 +222,7 @@ export function ProcedureBuilder({ versionId }: ProcedureBuilderProps) {
   const handleValidate = async () => {
     setIsValidating(true);
     try {
+      await persistDraft();
       const res = await validateProcedureVersion(versionId);
       setValidationResult(res);
       setIsValidationDrawerOpen(true);
@@ -188,6 +238,7 @@ export function ProcedureBuilder({ versionId }: ProcedureBuilderProps) {
   const handleOpenPublish = async () => {
     setIsValidating(true);
     try {
+      await persistDraft();
       const res = await validateProcedureVersion(versionId);
       setValidationResult(res);
       if (!res.isValid) {
@@ -375,9 +426,15 @@ export function ProcedureBuilder({ versionId }: ProcedureBuilderProps) {
             selectedWorkflowDefinitionId={selectedWorkflowDefId}
             onSelectFormVersion={(fvId) => {
               setSelectedFormVersionId(fvId);
+              persistDraft({ formVersionId: fvId }).catch((err) =>
+                console.warn('Auto-save form version failed:', err),
+              );
             }}
             onSelectWorkflow={(wId) => {
               setSelectedWorkflowDefId(wId);
+              persistDraft({ operatonDefinitionId: wId }).catch((err) =>
+                console.warn('Auto-save workflow failed:', err),
+              );
             }}
             isReadOnly={isReadOnly}
           />

@@ -505,9 +505,9 @@ export class ProcedureService {
           });
         }
       }
-
-      return this.getVersionById(versionId);
     });
+
+    return this.getVersionById(versionId);
   }
 
   /**
