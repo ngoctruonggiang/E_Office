@@ -30,6 +30,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message: string | string[] = 'Internal server error';
     let error = 'InternalServerError';
     let details: unknown;
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       const res = exception.getResponse();
@@ -40,6 +41,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = (body.message as string | string[]) ?? exception.message;
         error = (body.error as string) ?? exception.name;
         details = body.details;
+        code = body.code as string | undefined;
       }
     } else {
       // Unknown/unexpected error — log it server-side for diagnosis.
@@ -50,6 +52,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       error,
       message,
+      ...(code !== undefined ? { code } : {}),
       ...(details !== undefined ? { details } : {}),
       path: request.url,
       timestamp: new Date().toISOString(),

@@ -25,6 +25,10 @@ model SignatureField {
   // The chosen approver this box belongs to (a FlowAssignee user id).
   assigneeId String
 
+  // Optional BPMN integration linkage
+  taskDefinitionKey String?
+  actualActorId     String?
+
   // Geometry as % of the page, top-left origin (matches the on-screen overlay).
   page   Int
   x      Float
@@ -50,4 +54,5 @@ model SignatureField {
   @@index([responseId])
   @@index([documentId])
   @@index([assigneeId])
+  @@index([responseId, taskDefinitionKey])
 }

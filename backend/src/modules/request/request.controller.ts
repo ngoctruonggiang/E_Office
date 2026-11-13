@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -39,6 +40,15 @@ import {
 } from './dto/request-response.dto';
 import { ListRequestsQueryDto } from './dto/list-requests-query.dto';
 import { FlowStatusDto } from '../approval-flow/dto/flow-status.dto';
+import { CreateRequestFromProcedureDto } from './dto/create-request-from-procedure.dto';
+import { PreviewFlowDto } from './dto/preview-flow.dto';
+import { UpdateActualActorsDto } from './dto/update-actual-actors.dto';
+import { SubmitProcedureRequestDto } from './dto/submit-procedure-request.dto';
+import { DutyQueryDto } from './dto/duty-query.dto';
+import { TaskActionDto } from './dto/task-action.dto';
+import { SignAndApproveDto } from './dto/sign-and-approve.dto';
+import { ResubmitRequestDto } from './dto/resubmit-request.dto';
+import { CloneProcedureRequestDto } from './dto/clone-procedure-request.dto';
 
 /**
  * Requests = filled-in forms (EAV). Each request carries its own approval
@@ -64,6 +74,18 @@ export class RequestController {
     return this.requests.create(user.userId, dto);
   }
 
+  // ── Phase 5 Procedure Runtime Endpoints ──────────────────────────────
+
+  @Post('from-procedure')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a draft request from a published Procedure (ADR-005)' })
+  createFromProcedure(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateRequestFromProcedureDto,
+  ) {
+    return this.requests.createFromProcedure(dto, user.userId);
+  }
+
   // ── static list routes BEFORE :id to avoid route shadowing ─────────────
 
   /** Requests I created, optionally filtered + paginated. */
@@ -84,16 +106,13 @@ export class RequestController {
   /** Requests where I have a pending task (my duty), optionally filtered + paginated. */
   @Get('duty')
   @ApiOperation({
-    summary: 'List requests where I have a pending task',
-    description:
-      'Pass ?formId= or ?status= to filter; ?page= and ?limit= to paginate.',
+    summary: 'List requests where I have a pending task (TaskProjection & legacy)',
   })
-  @ApiPaginatedResponse(RequestSummaryDto)
   getByDuty(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() query: ListRequestsQueryDto,
-  ): Promise<Paginated<RequestSummaryDto>> {
-    return this.requests.getByDuty(user.userId, query);
+    @Query() query: DutyQueryDto,
+  ) {
+    return this.requests.getMyDuties(user.userId, query);
   }
 
   /** Requests I can view (excludes my own), optionally filtered + paginated. */
@@ -211,6 +230,7 @@ export class RequestController {
 
   /** Submit a DRAFT (requestor) — finalize a cloned draft and start its flow. */
   @Post(':id/submit')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Submit a draft request (requestor only)',
     description:
@@ -326,5 +346,109 @@ export class RequestController {
     @Body() dto: ForwardDto,
   ): Promise<FlowStatusDto> {
     return this.requests.forward(user.userId, id, dto.toUserId);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // Phase 5: Operaton Process & PDF Signing Runtime Endpoints
+  // ═════════════════════════════════════════════════════════════════════
+
+  @Post(':id/preview-flow')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Simulate flow and preview predicted branches' })
+  previewFlow(
+    @Param('id') id: string,
+    @Body() dto: PreviewFlowDto,
+  ) {
+    return this.requests.previewFlow(id, dto.values);
+  }
+
+  @Put(':id/actual-actors')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Override actual approvers where allowOverride = true (ADR-003)' })
+  setActualActors(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateActualActorsDto,
+  ) {
+    return this.requests.setActualActors(id, dto.actors, user.userId);
+  }
+
+  @Get(':id/flow-status')
+  @ApiOperation({ summary: 'Get live BPMN execution status and task progression' })
+  getFlowStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.requests.getFlowStatus(id, user.userId);
+  }
+
+  @Post(':id/tasks/:taskId/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Approve task on Operaton (validating signature)' })
+  approveTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: TaskActionDto,
+  ) {
+    return this.requests.approveTask(id, taskId, dto.comment, user.userId);
+  }
+
+  @Post(':id/tasks/:taskId/sign-and-approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Atomic sign PDF and approve task on Operaton (REQ-RUN-03)' })
+  signAndApproveTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: SignAndApproveDto,
+  ) {
+    return this.requests.signAndApproveTask(id, taskId, dto, user.userId);
+  }
+
+  @Post(':id/tasks/:taskId/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reject task and terminate process instance' })
+  rejectTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: TaskActionDto,
+  ) {
+    return this.requests.rejectTask(id, taskId, dto.comment, user.userId);
+  }
+
+  @Post(':id/tasks/:taskId/request-changes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request changes from requester' })
+  requestChangesTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: TaskActionDto,
+  ) {
+    return this.requests.requestChangesTask(id, taskId, dto.comment, user.userId);
+  }
+
+  @Post(':id/resubmit')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resubmit revised request' })
+  resubmitProcedureRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ResubmitRequestDto,
+  ) {
+    return this.requests.resubmitProcedureRequest(id, dto, user.userId);
+  }
+
+  @Post(':id/clone')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Clone procedure request (reset or reserve)' })
+  cloneProcedureRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CloneProcedureRequestDto,
+  ) {
+    return this.requests.cloneProcedureRequest(id, dto.mode, user.userId);
   }
 }

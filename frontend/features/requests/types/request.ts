@@ -33,6 +33,12 @@ export type RequestSummary = {
   /** How this request was cloned from its parent (null for non-clones). */
   cloneMode?: CloneMode;
   createdAt: string;
+  procedureVersionId?: string | null;
+  procedure?: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
   // ── duty scope only: the caller's own task ("duty") on this request ───────
   /** The caller's task status on this request (duty list only). */
   dutyStatus?: TaskStatus | null;

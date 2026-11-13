@@ -23,7 +23,7 @@ import {
 import { CurrentUser } from '../../core/common/decorators/current-user.decorator';
 import { Roles } from '../../core/common/decorators/roles.decorator';
 import { RolesGuard } from '../../core/common/guards/roles.guard';
-import { AuthenticatedUser } from '../auth/interfaces/auth-provider.interface';
+import type { AuthenticatedUser } from '../auth/interfaces/auth-provider.interface';
 import { CreateProcedureDto } from './dto/create-procedure.dto';
 import { ListProceduresQueryDto } from './dto/list-procedures-query.dto';
 import { UpdateProcedureVersionDto } from './dto/update-procedure-version.dto';

@@ -64,6 +64,7 @@ model ProcedureVersion {
   createdBy        User                       @relation("ProcedureVersionCreator", fields: [createdById], references: [id])
   actorMappings    ProcedureActorMapping[]
   variableMappings ProcedureVariableMapping[]
+  formResponses    FormResponse[]
   activeFor        Procedure[]                @relation("ActiveProcedureVersion")
 
   @@unique([procedureId, version])

@@ -57,6 +57,7 @@ export interface ParsedBpmnStructure {
   tasks: ParsedBpmnTask[];
   gateways: ParsedBpmnGateway[];
   requiredVariables: RequiredVariableInfo[];
+  conditionVariables?: string[];
 }
 
 export interface DeployBpmnResult {

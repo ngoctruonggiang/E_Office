@@ -306,3 +306,162 @@ export function getProcedureDirectory(
   return query ? req.query(query) : req;
 }
 
+// ── Phase 5 runtime & signing ─────────────────────────────────────────────
+
+export function createRequestFromProcedure(
+  app: INestApplication,
+  token: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post('/requests/from-procedure')
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function previewFlow(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/preview-flow`)
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function setActualActors(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .put(`/requests/${id}/actual-actors`)
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function submitProcedureRequest(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body?: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/submit`)
+    .set('Authorization', bearer(token))
+    .send((body || {}) as any);
+}
+
+export function getFlowStatus(
+  app: INestApplication,
+  token: string,
+  id: string,
+) {
+  return request(app.getHttpServer())
+    .get(`/requests/${id}/flow-status`)
+    .set('Authorization', bearer(token));
+}
+
+export function getMyDuties(
+  app: INestApplication,
+  token: string,
+  query?: Record<string, any>,
+) {
+  const req = request(app.getHttpServer())
+    .get('/requests/duty')
+    .set('Authorization', bearer(token));
+  return query ? req.query(query) : req;
+}
+
+export function approveTask(
+  app: INestApplication,
+  token: string,
+  id: string,
+  taskId: string,
+  body?: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/tasks/${taskId}/approve`)
+    .set('Authorization', bearer(token))
+    .send((body || {}) as any);
+}
+
+export function signAndApproveTask(
+  app: INestApplication,
+  token: string,
+  id: string,
+  taskId: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/tasks/${taskId}/sign-and-approve`)
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function rejectTask(
+  app: INestApplication,
+  token: string,
+  id: string,
+  taskId: string,
+  body?: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/tasks/${taskId}/reject`)
+    .set('Authorization', bearer(token))
+    .send((body || {}) as any);
+}
+
+export function requestChangesTask(
+  app: INestApplication,
+  token: string,
+  id: string,
+  taskId: string,
+  body?: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/tasks/${taskId}/request-changes`)
+    .set('Authorization', bearer(token))
+    .send((body || {}) as any);
+}
+
+export function resubmitProcedureRequest(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/resubmit`)
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function cancelProcedureRequest(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body?: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/cancel`)
+    .set('Authorization', bearer(token))
+    .send((body || {}) as any);
+}
+
+export function cloneProcedureRequest(
+  app: INestApplication,
+  token: string,
+  id: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post(`/requests/${id}/clone`)
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+

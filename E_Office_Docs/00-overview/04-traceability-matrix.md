@@ -1,6 +1,6 @@
 # 04 — Ma trận Truy vết Yêu cầu (Traceability Matrix)
 
-**Trạng thái:** `APPROVED` (Phase 0, Phase 2, Phase 3 & Phase 4 — `REQ-FRM-01`, `REQ-FRM-02`, `REQ-OPR-01`, `REQ-OPR-02`, `REQ-OPR-03`, `REQ-PRC-01`, `REQ-PRC-02` `VERIFIED`)
+**Trạng thái:** `APPROVED` (Phase 0, 2, 3, 4, 5 `VERIFIED`; chuẩn bị Phase 6)
 
 Bảng này đảm bảo **mọi yêu cầu nghiệp vụ** đều đi từ Tài liệu đặc tả -> Code triển khai -> Kiểm thử tự động, không có tính năng "code chui" ngoài tài liệu và không có tài liệu "nằm trên giấy".
 
@@ -16,9 +16,9 @@ Bảng này đảm bảo **mọi yêu cầu nghiệp vụ** đều đi từ Tài
 | `REQ-OPR-03` | Phase 3 | Công cụ thiết kế Workflow 2 lớp: Hỗ trợ Desktop Modeler (`operaton-modeler`) & Web Modeler nhúng (`bpmn-js`) trên e-Office | `02-specs/phase-3-operaton-adapter/web-modeler-spec.md`, `00-overview/05-operaton-workflow-architecture-and-modeler.md`, `ADR-006` | `frontend/features/workflow/*`, `frontend/app/(main)/workflows/*`, `backend/src/modules/operaton/*` | `TC-OPR-F01..F04,E2E` | `VERIFIED` |
 | `REQ-PRC-01` | Phase 4 | Quản lý `Procedure` ghép `FormVersion` + `ProcessDefinition` (kéo qua API Operaton) | `02-specs/phase-4-procedure-mapping/{prd,data-model,api-contract,test-plan}.md` | `procedure.prisma`, `procedure/*`, FE Procedure Builder | `TC-PRC-U01..U04,E01,E03,E04` | `VERIFIED` |
 | `REQ-PRC-02` | Phase 4 | Map biến điều kiện (`field A` -> `giá trị`) và gán user mặc định kèm Phòng ban/Chức danh + `allowOverride` | `02-specs/phase-4-procedure-mapping/{mapping-rules,ui-wireframe-and-rules,test-plan}.md` | `ProcedureModule` + FE Mapping UI | `TC-PRC-U05..U10,E02,E05` | `VERIFIED` |
-| `REQ-RUN-01` | Phase 5 | Người trình chọn `Procedure` mẫu, nhập Form layout mới, xem trước sơ đồ luồng & nhánh điều kiện dự kiến | `02-specs/phase-5-runtime-and-signing/` *(chưa tạo)* | `CreateRequestWizard`, `FlowPreview`, `RequestService` | Preview & start process E2E | `DRAFT` |
-| `REQ-RUN-02` | Phase 5 | Cho phép người trình **sửa/bổ sung người duyệt** trước khi gửi mà vẫn chạy đúng trên BPMN Operaton | `02-specs/phase-5-runtime-and-signing/flow-preview-and-override.md` | `RequestService`, `OperatonAdapterService`, FE Wizard | Override & multi-instance E2E | `DRAFT` |
-| `REQ-RUN-03` | Phase 5 | Đính kèm PDF + đặt `SignatureField` cho danh sách người duyệt thực tế; ký số PDF gắn với complete task Operaton | `02-specs/phase-5-runtime-and-signing/pdf-signing-integration.md` | `SignatureModule`, `SignDocumentModal`, `OperatonModule` | Sign-then-complete E2E | `DRAFT` |
-| `REQ-RUN-04` | Phase 5 | Đồng bộ vòng đời `REQUEST_CHANGES` / `REJECT` / `CANCEL` / `CLONE` giữa DB e-Office và Operaton | `02-specs/phase-5-runtime-and-signing/revise-cancel-lifecycle.md` | `RequestService`, `OperatonSyncService` | Revise & cancel lifecycle E2E | `DRAFT` |
+| `REQ-RUN-01` | Phase 5 | Người trình chọn `Procedure` mẫu, nhập Form layout mới, xem trước sơ đồ luồng & nhánh điều kiện dự kiến | `02-specs/phase-5-runtime-and-signing/{prd,data-model,flow-preview-and-override,api-contract,test-plan}.md` | `CreateRequestWizard`, `BpmnFlowViewer`, `RequestService` | `TC-RUN-U01..U06,I01..I03,E01` | `VERIFIED` |
+| `REQ-RUN-02` | Phase 5 | Cho phép người trình **sửa/bổ sung người duyệt** trước khi gửi mà vẫn chạy đúng trên BPMN Operaton | `02-specs/phase-5-runtime-and-signing/flow-preview-and-override.md` | `RequestService`, `RequestActualActor`, `FlowPreviewAndActorStep` | `TC-RUN-U07,U08,I03` | `VERIFIED` |
+| `REQ-RUN-03` | Phase 5 | Đính kèm PDF + đặt `SignatureField` cho danh sách người duyệt thực tế; ký số PDF gắn với complete task Operaton | `02-specs/phase-5-runtime-and-signing/pdf-signing-integration.md` | `SignatureModule`, `SignDocumentModal`, `RequestService` | `TC-RUN-U09..U11,I05,E02` | `VERIFIED` |
+| `REQ-RUN-04` | Phase 5 | Đồng bộ vòng đời `REQUEST_CHANGES` / `REJECT` / `CANCEL` / `CLONE` giữa DB e-Office và Operaton | `02-specs/phase-5-runtime-and-signing/revise-cancel-lifecycle.md` | `RequestService`, `TaskProjection`, `/requests/duty` | `TC-RUN-U12,I04,I06,E03..E07` | `VERIFIED` |
 | `REQ-DYN-01` | Phase 6 | Gán tác nhân động theo Phòng ban / Chức danh (từ cây `Organization` & Keycloak attributes) | `02-specs/phase-6-dynamic-actor-and-hardening/` *(chưa tạo)* | `ActorResolverService`, `ProcedureModule` | Dynamic role resolution E2E | `DRAFT` |
 

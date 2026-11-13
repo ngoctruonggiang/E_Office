@@ -68,13 +68,22 @@ E_Office_Docs/
 │       ├── api-contract.md                    # API Endpoints (/operaton/*) & Operaton REST client
 │       ├── web-modeler-spec.md                # Đặc tả Web BPMN Modeler (nhúng bpmn-js trên e-Office)
 │       └── test-plan.md                       # Kế hoạch test container, parser, execution & error handling
-│   └── phase-4-procedure-mapping/             # [VERIFIED] Phase 4: Lớp Cầu nối Procedure
-│       ├── prd.md                             # Mục tiêu, Phạm vi & Acceptance Criteria (REQ-PRC-01, REQ-PRC-02)
-│       ├── data-model.md                      # Prisma schema (Procedure, ProcedureVersion, ActorMapping, VariableMapping)
-│       ├── mapping-rules.md                   # Quy tắc trích xuất biến, gán tác nhân kèm phòng ban/chức danh, validation
-│       ├── api-contract.md                    # REST Endpoints (/procedures/*), Directory Helper & Version Pinning
-│       ├── ui-wireframe-and-rules.md          # Wireframe Danh mục & Trình thiết kế Thủ tục 4 bước chuẩn GAFOOD × RAMP
-│       └── test-plan.md                       # Kế hoạch kiểm thử Unit, E2E & Validation Engine (TC-PRC-*)
+│   ├── phase-4-procedure-mapping/             # [VERIFIED] Phase 4: Lớp Cầu nối Procedure
+│   │   ├── prd.md                             # Mục tiêu, Phạm vi & Acceptance Criteria (REQ-PRC-01, REQ-PRC-02)
+│   │   ├── data-model.md                      # Prisma schema (Procedure, ProcedureVersion, ActorMapping, VariableMapping)
+│   │   ├── mapping-rules.md                   # Quy tắc trích xuất biến, gán tác nhân kèm phòng ban/chức danh, validation
+│   │   ├── api-contract.md                    # REST Endpoints (/procedures/*), Directory Helper & Version Pinning
+│   │   ├── ui-wireframe-and-rules.md          # Wireframe Danh mục & Trình thiết kế Thủ tục 4 bước chuẩn GAFOOD × RAMP
+│   │   └── test-plan.md                       # Kế hoạch kiểm thử Unit, E2E & Validation Engine (TC-PRC-*)
+│   └── phase-5-runtime-and-signing/           # [VERIFIED] Phase 5: Vận hành Run-time & Ký số PDF
+│       ├── prd.md                             # Mục tiêu, User Stories & Acceptance Criteria (REQ-RUN-01..04)
+│       ├── data-model.md                      # FormResponse, RequestActualActor, TaskProjection & SignatureField
+│       ├── flow-preview-and-override.md       # Thuật toán mô phỏng luồng BPMN, đánh giá rẽ nhánh & ADR-003 override
+│       ├── pdf-signing-integration.md         # Quy tắc ràng buộc "Ký trước - Duyệt sau", tích hợp hoàn thành task Operaton
+│       ├── revise-cancel-lifecycle.md         # Máy trạng thái vòng đời, đồng bộ Operaton & nhân bản (CLONE)
+│       ├── api-contract.md                    # REST Endpoints (/requests/*, /duty), DTOs & Error payloads
+│       ├── ui-wireframe-and-rules.md          # Wizard 5 bước tạo yêu cầu, Detail split-view & My Duties screen
+│       └── test-plan.md                       # Kế hoạch kiểm thử Unit, Integration & Scenarios (TC-RUN-*)
 └── 03-checklists/
     ├── doc-review-checklist.md                # Cổng duyệt tài liệu trước khi code
     └── code-compliance-checklist.md           # Cổng kiểm tra code khớp tài liệu trước khi đóng Phase

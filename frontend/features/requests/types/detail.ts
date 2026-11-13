@@ -1,6 +1,7 @@
 // Mirrors be RequestDetailDto + FlowStatusDto (request / approval-flow DTOs).
 
 import type { RequestStatus, RequestSummary } from "./request";
+import type { RequestActualActorItem } from "./procedure-runtime";
 
 export type TaskAction =
   | "APPROVE"
@@ -97,6 +98,9 @@ export type RequestDetail = RequestSummary & {
   /** The document designated for online signing, if any. */
   signatureDocumentId: string | null;
   flow: FlowStatus;
+  actualActors?: RequestActualActorItem[];
+  projectedTasks?: any[];
+  signatureFields?: any[];
 };
 
 export type StepState =

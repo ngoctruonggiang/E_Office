@@ -175,6 +175,7 @@ export class BpmnParserService {
       tasks,
       gateways,
       requiredVariables,
+      conditionVariables: requiredVariables.map((v) => v.name),
     };
   }
 

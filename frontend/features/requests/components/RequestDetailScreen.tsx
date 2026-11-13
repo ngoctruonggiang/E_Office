@@ -31,7 +31,9 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, shortId } from "@/lib/utils/format";
 import { useRequestDetail } from "../hooks/useRequestDetail";
-import { addRequestViewers, getRequest, submitDraft } from "../api/requests";
+import { addRequestViewers, getRequest, submitDraft, getFlowStatus } from "../api/requests";
+import type { OperatonFlowStatus } from "../types/procedure-runtime";
+import { BpmnFlowViewer } from "./BpmnFlowViewer";
 import {
   fromFlowSteps,
   initialFlowDrafts,
@@ -69,6 +71,15 @@ export function RequestDetailScreen({ id }: { id: string }) {
   const [seededFromId, setSeededFromId] = useState<string | null>(null);
   const [signingDraft, setSigningDraft] =
     useState<SigningDraft>(emptySigningDraft);
+  const [operatonFlow, setOperatonFlow] = useState<OperatonFlowStatus | null>(null);
+
+  useEffect(() => {
+    if (detail?.id && detail?.procedureVersionId) {
+      getFlowStatus(detail.id)
+        .then(setOperatonFlow)
+        .catch((err) => console.error("Failed to load operaton flow:", err));
+    }
+  }, [detail?.id, detail?.procedureVersionId]);
 
   const isOwner = !!user && user.id === detail?.createdById;
   const isCraftMode = isOwner && detail?.status === "DRAFT";
@@ -511,10 +522,12 @@ export function RequestDetailScreen({ id }: { id: string }) {
                     </div>
                   )}
 
-                  <div className="p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-2">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {t("detail.approvalFlow")}
+                        {detail.procedureVersionId
+                          ? "Tiến trình Quy trình (Operaton BPMN)"
+                          : t("detail.approvalFlow")}
                       </h2>
                       {detail.signatureDocumentId && (
                         <Button
@@ -527,7 +540,132 @@ export function RequestDetailScreen({ id }: { id: string }) {
                         </Button>
                       )}
                     </div>
-                    <ApprovalFlowPanel flow={detail.flow} />
+
+                    {detail.procedureVersionId ? (
+                      <div className="space-y-4">
+                        {/* Live BPMN Viewer */}
+                        <BpmnFlowViewer
+                          xml={operatonFlow?.bpmn20Xml}
+                          activeTaskKeys={operatonFlow?.activeTaskKeys || []}
+                          completedTaskKeys={
+                            operatonFlow?.completedTaskKeys || []
+                          }
+                          mode="live"
+                          className="h-[320px]"
+                        />
+
+                        {/* Approval Stage Timeline */}
+                        <div className="space-y-2.5">
+                          <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                            Các bước phê duyệt thực tế
+                          </h3>
+                          <div className="space-y-2">
+                            {(
+                              operatonFlow?.actualActors ||
+                              detail.actualActors ||
+                              []
+                            ).map((actor, idx) => {
+                              const isCompleted =
+                                operatonFlow?.completedTaskKeys?.includes(
+                                  actor.taskDefinitionKey,
+                                );
+                              const isActive =
+                                operatonFlow?.activeTaskKeys?.includes(
+                                  actor.taskDefinitionKey,
+                                );
+
+                              return (
+                                <div
+                                  key={actor.taskDefinitionKey}
+                                  className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
+                                    isCompleted
+                                      ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                                      : isActive
+                                      ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/30 ring-1 ring-amber-400"
+                                      : "border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/40 opacity-70"
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                      <span>
+                                        Bước {actor.order || idx + 1}:{" "}
+                                        {actor.taskName}
+                                      </span>
+                                      {actor.isOverridden && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                          Đã đổi người
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-slate-500 mt-0.5">
+                                      {(actor as any).assignee?.name ||
+                                        (actor as any).userName ||
+                                        (actor as any).userId}{" "}
+                                      ·{" "}
+                                      {(actor as any).assignee?.title ||
+                                        (actor as any).title ||
+                                        "Người duyệt"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    {isCompleted ? (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                                        Đã duyệt
+                                      </span>
+                                    ) : isActive ? (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 animate-pulse">
+                                        Đang chờ
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 dark:bg-slate-800">
+                                        Chưa đến lượt
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Operaton Action Audit History */}
+                        {operatonFlow?.history &&
+                          operatonFlow.history.length > 0 && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                              <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Nhật ký xử lý hồ sơ
+                              </h3>
+                              <div className="space-y-1.5 text-xs">
+                                {operatonFlow.history.map((h) => (
+                                  <div
+                                    key={h.id}
+                                    className="p-2 rounded bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-0.5"
+                                  >
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {h.actorName}
+                                      </span>
+                                      <span className="text-slate-400">
+                                        {formatDateTime(h.timestamp, locale)}
+                                      </span>
+                                    </div>
+                                    <div className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                                      <span className="font-mono text-[10px] font-bold px-1 rounded bg-slate-200 dark:bg-slate-700">
+                                        {h.action}
+                                      </span>
+                                      <span>
+                                        {h.comment || "Không có ghi chú"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    ) : (
+                      <ApprovalFlowPanel flow={detail.flow} />
+                    )}
                   </div>
                 </div>
               )}

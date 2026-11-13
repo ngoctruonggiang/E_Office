@@ -102,7 +102,12 @@ export class OperatonClientService {
     businessKey: string,
     variables?: Record<string, { value: any; type: string }>,
   ): Promise<ProcessInstanceResponse> {
-    const path = processKeyOrId.includes(':')
+    const isId =
+      processKeyOrId.includes(':') ||
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        processKeyOrId,
+      );
+    const path = isId
       ? `/process-definition/${encodeURIComponent(processKeyOrId)}/start`
       : `/process-definition/key/${encodeURIComponent(processKeyOrId)}/start`;
 

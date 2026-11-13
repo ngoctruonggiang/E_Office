@@ -33,4 +33,8 @@ export class SubmitDraftDto {
   @IsOptional()
   @IsString()
   flowName?: string;
+
+  @ApiPropertyOptional({ description: 'Optional form values for procedure submission' })
+  @IsOptional()
+  values?: Record<string, any>;
 }

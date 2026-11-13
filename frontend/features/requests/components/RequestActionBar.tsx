@@ -13,6 +13,7 @@ import {
   Pencil,
   Share2,
   Send,
+  FileSignature,
 } from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
 import { useModal } from "@/components/providers/ModalProvider";
@@ -28,6 +29,13 @@ import {
   cloneRequest,
   cancelRequest,
   requestChangesSelf,
+  approveOperatonTask,
+  signAndApproveOperatonTask,
+  rejectOperatonTask,
+  requestChangesOperatonTask,
+  resubmitProcedureRequest,
+  cancelProcedureRequest,
+  cloneProcedureRequest,
 } from "../api/requests";
 import { availableActions } from "../lib/flow";
 import type { RequestDetail, TaskAction } from "../types/detail";
@@ -149,7 +157,158 @@ export function RequestActionBar({
       }
     };
 
-  const hasApprovalActions = !!actions.task;
+  const isProcedureMode = Boolean(detail.procedureVersionId);
+  const myActiveTask = isProcedureMode
+    ? detail.projectedTasks?.find(
+        (t) => t.status === "ACTIVE" && t.assigneeId === userId,
+      )
+    : null;
+  const requiresSignature = Boolean(
+    detail.signatureFields?.some(
+      (s) => s.assigneeId === userId && s.status === "PENDING",
+    ),
+  );
+
+  const doOperatonApprove = async () => {
+    if (!myActiveTask) return;
+    if (requiresSignature && hasSigningDoc) {
+      openSignModal("approve");
+      return;
+    }
+    setBusy(true);
+    try {
+      await approveOperatonTask(detail.id, myActiveTask.operatonTaskId);
+      notify({ title: "Đã phê duyệt thành công", kind: "success" });
+      onActed();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doOperatonReject = () => {
+    if (!myActiveTask) return;
+    open(
+      <ConfirmDialog
+        title="Từ chối hồ sơ yêu cầu"
+        description="Bạn có chắc chắn muốn từ chối hồ sơ này? Hành động này sẽ dừng quy trình phê duyệt."
+        confirmLabel="Từ chối hồ sơ"
+        tone="danger"
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await rejectOperatonTask(
+              detail.id,
+              myActiveTask.operatonTaskId,
+              "Từ chối phê duyệt",
+            );
+            notify({ title: "Đã từ chối hồ sơ", kind: "success" });
+            onActed();
+          } catch (err) {
+            fail(err);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />,
+    );
+  };
+
+  const doOperatonRequestChanges = () => {
+    if (!myActiveTask) return;
+    open(
+      <ConfirmDialog
+        title="Yêu cầu chỉnh sửa hồ sơ"
+        description="Yêu cầu người trình điều chỉnh lại các thông tin hoặc tài liệu đính kèm."
+        confirmLabel="Yêu cầu chỉnh sửa"
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await requestChangesOperatonTask(
+              detail.id,
+              myActiveTask.operatonTaskId,
+              "Yêu cầu chỉnh sửa bổ sung thông tin",
+            );
+            notify({
+              title: "Đã gửi yêu cầu chỉnh sửa cho người trình",
+              kind: "success",
+            });
+            onActed();
+          } catch (err) {
+            fail(err);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />,
+    );
+  };
+
+  const doOperatonResubmit = async () => {
+    open(
+      <ConfirmDialog
+        title="Nộp lại hồ sơ"
+        description="Bạn xác nhận đã hoàn tất chỉnh sửa và muốn nộp lại hồ sơ để tiếp tục quy trình phê duyệt?"
+        confirmLabel="Nộp lại hồ sơ"
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await resubmitProcedureRequest(detail.id, {
+              comment: "Đã hoàn tất chỉnh sửa và nộp lại",
+            });
+            notify({ title: "Đã nộp lại hồ sơ thành công", kind: "success" });
+            onActed();
+          } catch (err) {
+            fail(err);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />,
+    );
+  };
+
+  const doOperatonCancel = () => {
+    open(
+      <ConfirmDialog
+        title="Hủy hồ sơ yêu cầu"
+        description="Bạn có chắc chắn muốn hủy hồ sơ này? Hành động này không thể hoàn tác."
+        confirmLabel="Hủy hồ sơ"
+        tone="danger"
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await cancelProcedureRequest(
+              detail.id,
+              "Người trình chủ động hủy hồ sơ",
+            );
+            notify({ title: "Đã hủy hồ sơ", kind: "success" });
+            onActed();
+          } catch (err) {
+            fail(err);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />,
+    );
+  };
+
+  const doOperatonClone = (mode: "reset" | "reserve") => async () => {
+    setBusy(true);
+    try {
+      const clone = await cloneProcedureRequest(detail.id, mode);
+      notify({ title: "Đã sao chép hồ sơ thành công", kind: "success" });
+      router.push(`/requests/${clone.id}`);
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const hasApprovalActions = isProcedureMode ? !!myActiveTask : !!actions.task;
   const hasAnything =
     canConfirmDraft ||
     (canEditForm && !isEditingForm) ||
@@ -180,7 +339,39 @@ export function RequestActionBar({
 
   // Determine the single primary CTA
   let primaryCta: React.ReactNode = null;
-  if (canConfirmDraft) {
+  if (isProcedureMode) {
+    if (awaitingRevision) {
+      primaryCta = (
+        <Button variant="accent" loading={busy} onClick={doOperatonResubmit}>
+          <RefreshCw size={15} />
+          Nộp lại hồ sơ
+        </Button>
+      );
+    } else if (myActiveTask) {
+      if (requiresSignature && hasSigningDoc) {
+        primaryCta = (
+          <Button variant="accent" loading={busy} onClick={() => openSignModal("approve")}>
+            <FileSignature size={15} />
+            Ký số & Phê duyệt
+          </Button>
+        );
+      } else {
+        primaryCta = (
+          <Button variant="accent" loading={busy} onClick={doOperatonApprove}>
+            <Check size={15} />
+            Phê duyệt
+          </Button>
+        );
+      }
+    } else if (canCloneReset) {
+      primaryCta = (
+        <Button variant="outline" loading={busy} onClick={doOperatonClone("reset")}>
+          <Copy size={15} />
+          Sao chép hồ sơ
+        </Button>
+      );
+    }
+  } else if (canConfirmDraft) {
     primaryCta = (
       <Button variant="accent" loading={busy} onClick={doConfirmDraft}>
         <Send size={15} />
@@ -234,7 +425,19 @@ export function RequestActionBar({
   // Determine at most 1 prominent secondary action; rest go into overflow menu
   let secondaryButton: React.ReactNode = null;
   let secondaryUsedBy: "edit" | "requestChanges" | "share" | null = null;
-  if (canEditForm && !isEditingForm && onEditForm) {
+  if (isProcedureMode && myActiveTask) {
+    secondaryUsedBy = "requestChanges";
+    secondaryButton = (
+      <Button
+        variant="outline"
+        loading={busy}
+        onClick={doOperatonRequestChanges}
+      >
+        <RefreshCw size={14} />
+        Yêu cầu chỉnh sửa
+      </Button>
+    );
+  } else if (canEditForm && !isEditingForm && onEditForm) {
     secondaryUsedBy = "edit";
     secondaryButton = (
       <Button variant="outline" disabled={busy} onClick={onEditForm}>
@@ -275,6 +478,38 @@ export function RequestActionBar({
 
   // Overflow menu items
   const menuItems: ActionMenuItem[] = [];
+
+  if (isProcedureMode) {
+    if (myActiveTask) {
+      menuItems.push({
+        id: "operaton-reject",
+        label: "Từ chối hồ sơ",
+        icon: <X size={14} />,
+        tone: "danger",
+        disabled: busy,
+        onSelect: doOperatonReject,
+      });
+    }
+    if (canSelfCancel) {
+      menuItems.push({
+        id: "operaton-cancel",
+        label: "Hủy hồ sơ",
+        icon: <Ban size={14} />,
+        tone: "danger",
+        disabled: busy,
+        onSelect: doOperatonCancel,
+      });
+    }
+    if (canCloneReset) {
+      menuItems.push({
+        id: "operaton-clone-reserve",
+        label: "Sao chép (Giữ duyệt cũ)",
+        icon: <Copy size={14} />,
+        disabled: busy,
+        onSelect: doOperatonClone("reserve"),
+      });
+    }
+  }
 
   if (canEditForm && !isEditingForm && onEditForm && secondaryUsedBy !== "edit") {
     menuItems.push({

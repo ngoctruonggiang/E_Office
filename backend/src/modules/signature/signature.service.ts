@@ -12,6 +12,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { ApprovalEngineService } from '../approval-flow/approval-engine.service';
+import { OperatonClientService } from '../operaton/operaton-client.service';
 import { FlowStatusDto } from '../approval-flow/dto/flow-status.dto';
 import { SetSignatureDto } from './dto/set-signature.dto';
 import {
@@ -30,6 +31,7 @@ export class SignatureService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly engine: ApprovalEngineService,
+    private readonly operatonClient: OperatonClientService,
   ) {}
 
   /** Read the signing document + boxes for a request (any involved user). */
@@ -177,6 +179,59 @@ export class SignatureService {
       },
     });
 
+    if (request.procedureVersionId) {
+      const activeTask = await this.prisma.taskProjection.findFirst({
+        where: { responseId: requestId, assigneeId: userId, status: 'ACTIVE' },
+      });
+      if (activeTask) {
+        await this.operatonClient.completeTask(activeTask.operatonTaskId, {
+          approved: { value: true, type: 'Boolean' },
+        });
+        await this.prisma.taskProjection.update({
+          where: { id: activeTask.id },
+          data: { status: 'COMPLETED', completedAt: new Date() },
+        });
+        const remainingTasks = await this.operatonClient.getActiveTasks(
+          activeTask.processInstanceId,
+        );
+        if (remainingTasks.length > 0) {
+          const actualActors = await this.prisma.requestActualActor.findMany({
+            where: { responseId: requestId },
+          });
+          const actorMap = new Map(actualActors.map((a) => [a.taskDefinitionKey, a]));
+          for (const nextT of remainingTasks) {
+            const assigned = actorMap.get(nextT.taskDefinitionKey);
+            await this.prisma.taskProjection.upsert({
+              where: { operatonTaskId: nextT.id },
+              create: {
+                operatonTaskId: nextT.id,
+                processInstanceId: activeTask.processInstanceId,
+                responseId: requestId,
+                taskDefinitionKey: nextT.taskDefinitionKey,
+                taskName: nextT.name || nextT.taskDefinitionKey,
+                assigneeId: assigned?.userId || userId,
+                status: 'ACTIVE',
+              },
+              update: { status: 'ACTIVE' },
+            });
+          }
+        } else {
+          await this.prisma.formResponse.update({
+            where: { id: requestId },
+            data: { status: RequestStatus.APPROVED },
+          });
+        }
+        await this.prisma.requestComment.create({
+          data: {
+            responseId: requestId,
+            authorId: userId,
+            body: '[APPROVE] Đã ký số và phê duyệt',
+          },
+        });
+      }
+      return this.engine.getStatus(requestId);
+    }
+
     // Advance the approval flow (engine re-checks all boxes are signed).
     return this.engine.act(userId, request.id, TaskAction.APPROVE);
   }
@@ -195,6 +250,37 @@ export class SignatureService {
       },
       data: { status: SignatureStatus.REJECTED, signedAt: new Date() },
     });
+
+    if (request.procedureVersionId) {
+      const activeTask = await this.prisma.taskProjection.findFirst({
+        where: { responseId: requestId, assigneeId: userId, status: 'ACTIVE' },
+      });
+      if (activeTask) {
+        try {
+          await this.operatonClient.deleteProcessInstance(
+            activeTask.processInstanceId,
+            'Từ chối ký tài liệu',
+          );
+        } catch (err: any) {}
+        await this.prisma.taskProjection.updateMany({
+          where: { responseId: requestId, status: 'ACTIVE' },
+          data: { status: 'CANCELLED' },
+        });
+        await this.prisma.formResponse.update({
+          where: { id: requestId },
+          data: { status: RequestStatus.REJECTED },
+        });
+        await this.prisma.requestComment.create({
+          data: {
+            responseId: requestId,
+            authorId: userId,
+            body: '[REJECT] Đã từ chối ký số và bác bỏ hồ sơ',
+          },
+        });
+      }
+      return this.engine.getStatus(requestId);
+    }
+
     return this.engine.act(userId, request.id, TaskAction.REJECT);
   }
 

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -27,11 +28,27 @@ import {
   RequestSummaryDto,
 } from './dto/request-response.dto';
 import { validateRequestValues } from '../form-builder/validators/form-value.validator';
+import { OperatonClientService } from '../operaton/operaton-client.service';
+import { BpmnParserService } from '../operaton/bpmn-parser.service';
+import { FlowSimulationService, FlowSimulationResult } from './flow-simulation.service';
+import { CreateRequestFromProcedureDto } from './dto/create-request-from-procedure.dto';
+import { ActualActorItemDto } from './dto/update-actual-actors.dto';
+import { DutyQueryDto } from './dto/duty-query.dto';
+import { SignAndApproveDto } from './dto/sign-and-approve.dto';
+import { ResubmitRequestDto } from './dto/resubmit-request.dto';
+import { CloneProcedureRequestDto } from './dto/clone-procedure-request.dto';
 
 /** Include used to build a request summary (form id/name + version). */
 const summaryInclude = {
   formVersion: {
     select: { version: true, form: { select: { id: true, name: true } } },
+  },
+  procedureVersion: {
+    select: {
+      id: true,
+      version: true,
+      procedure: { select: { id: true, code: true, name: true } },
+    },
   },
 } satisfies Prisma.FormResponseInclude;
 
@@ -63,6 +80,9 @@ export class RequestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly engine: ApprovalEngineService,
+    private readonly operatonClient: OperatonClientService,
+    private readonly bpmnParser: BpmnParserService,
+    private readonly flowSimulation: FlowSimulationService,
   ) { }
 
   /**
@@ -280,7 +300,15 @@ export class RequestService {
     userId: string,
     id: string,
     dto: SubmitDraftDto,
-  ): Promise<RequestDetailDto> {
+  ): Promise<any> {
+    const check = await this.prisma.formResponse.findUnique({
+      where: { id },
+      select: { procedureVersionId: true },
+    });
+    if (check?.procedureVersionId) {
+      return this.submitProcedureRequest(id, dto.values, userId);
+    }
+
     const request = await this.prisma.formResponse.findUnique({
       where: { id },
       include: {
@@ -389,13 +417,16 @@ export class RequestService {
    * valid while DRAFT / PENDING / REQUEST_CHANGES. Cancels any pending tasks
    * and marks the flow done.
    */
-  async cancelByRequestor(userId: string, id: string): Promise<RequestDetailDto> {
+  async cancelByRequestor(userId: string, id: string): Promise<any> {
     const request = await this.prisma.formResponse.findUnique({
       where: { id },
       include: { flowInstance: true },
     });
     if (!request) {
       throw new NotFoundException('Request not found');
+    }
+    if (request.procedureVersionId) {
+      return this.cancelProcedureRequest(id, undefined, userId);
     }
     if (request.createdById !== userId) {
       throw new ForbiddenException('Only the requestor can cancel this request');
@@ -641,6 +672,15 @@ export class RequestService {
         documents: {
           select: { documentId: true, signing: true, section: true },
         },
+        actualActors: {
+          include: { user: true },
+          orderBy: { order: 'asc' },
+        },
+        projectedTasks: {
+          include: { assignee: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        signatureFields: true,
       },
     });
     if (!row) {
@@ -660,6 +700,28 @@ export class RequestService {
       signatureDocumentId:
         row.documents.find((d) => d.signing)?.documentId ?? null,
       flow,
+      actualActors: (row as any).actualActors?.map((a: any) => ({
+        taskDefinitionKey: a.taskDefinitionKey,
+        taskName: a.taskName,
+        userId: a.userId,
+        userName: a.user?.displayName || a.user?.email,
+        department: a.department || a.user?.department,
+        title: a.title || a.user?.title,
+        isOverridden: a.isOverridden,
+        order: a.order,
+      })),
+      projectedTasks: (row as any).projectedTasks?.map((t: any) => ({
+        id: t.id,
+        operatonTaskId: t.operatonTaskId,
+        taskDefinitionKey: t.taskDefinitionKey,
+        taskName: t.taskName,
+        status: t.status,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assignee?.displayName || t.assignee?.email,
+        createdAt: t.createdAt,
+        completedAt: t.completedAt,
+      })),
+      signatureFields: (row as any).signatureFields,
     };
   }
 
@@ -1061,6 +1123,1234 @@ export class RequestService {
       clonedFromId: row.clonedFromId,
       cloneMode: row.cloneMode,
       createdAt: row.createdAt,
+      procedureVersionId: (row as any).procedureVersionId ?? null,
+      procedure: (row as any).procedureVersion?.procedure
+        ? {
+            id: (row as any).procedureVersion.procedure.id,
+            code: (row as any).procedureVersion.procedure.code,
+            name: (row as any).procedureVersion.procedure.name,
+          }
+        : null,
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // Phase 5: Operaton Runtime & PDF Signing Integration
+  // ═════════════════════════════════════════════════════════════════════
+
+  /**
+   * Create a draft request from a published Procedure (REQ-RUN-01, ADR-005).
+   */
+  async createFromProcedure(
+    dto: CreateRequestFromProcedureDto,
+    userId: string,
+  ) {
+    let procedureVersion: any;
+
+    if (dto.procedureVersionId) {
+      procedureVersion = await this.prisma.procedureVersion.findUnique({
+        where: { id: dto.procedureVersionId },
+        include: {
+          procedure: true,
+          formVersion: true,
+          actorMappings: {
+            include: { defaultUser: true },
+            orderBy: { order: 'asc' },
+          },
+          variableMappings: true,
+        },
+      });
+    } else if (dto.procedureId) {
+      const proc = await this.prisma.procedure.findUnique({
+        where: { id: dto.procedureId },
+        include: {
+          activeVersion: {
+            include: {
+              procedure: true,
+              formVersion: true,
+              actorMappings: {
+                include: { defaultUser: true },
+                orderBy: { order: 'asc' },
+              },
+              variableMappings: true,
+            },
+          },
+        },
+      });
+      procedureVersion = proc?.activeVersion;
+    }
+
+    if (!procedureVersion || procedureVersion.status !== 'PUBLISHED') {
+      throw new BadRequestException(
+        'Không tìm thấy phiên bản Thủ tục hợp lệ hoặc Thủ tục chưa được xuất bản',
+      );
+    }
+
+    if (!procedureVersion.formVersionId) {
+      throw new BadRequestException(
+        'Thủ tục này chưa được cấu hình Biểu mẫu (FormVersion)',
+      );
+    }
+
+    const response = await this.prisma.formResponse.create({
+      data: {
+        procedureVersionId: procedureVersion.id,
+        formVersionId: procedureVersion.formVersionId,
+        createdById: userId,
+        status: RequestStatus.DRAFT,
+      },
+      include: {
+        procedureVersion: {
+          include: {
+            procedure: true,
+            actorMappings: {
+              include: { defaultUser: true },
+              orderBy: { order: 'asc' },
+            },
+          },
+        },
+        formVersion: true,
+      },
+    });
+
+    // Seed default actors into RequestActualActor
+    for (const mapping of procedureVersion.actorMappings) {
+      if (mapping.defaultUserId) {
+        await this.prisma.requestActualActor.create({
+          data: {
+            responseId: response.id,
+            taskDefinitionKey: mapping.taskDefinitionKey,
+            taskName: mapping.taskName,
+            userId: mapping.defaultUserId,
+            isOverridden: false,
+            order: mapping.order,
+            department: mapping.defaultUser?.department || null,
+            title: mapping.defaultUser?.title || null,
+          },
+        });
+      }
+    }
+
+    const actualActors = await this.prisma.requestActualActor.findMany({
+      where: { responseId: response.id },
+      include: { user: true },
+      orderBy: { order: 'asc' },
+    });
+
+    return {
+      id: response.id,
+      status: response.status,
+      procedure: {
+        id: procedureVersion.procedure.id,
+        code: procedureVersion.procedure.code,
+        name: procedureVersion.procedure.name,
+        icon: procedureVersion.procedure.icon,
+      },
+      procedureVersion: {
+        id: procedureVersion.id,
+        version: procedureVersion.version,
+        operatonDefinitionKey: procedureVersion.operatonDefinitionKey,
+      },
+      formVersion: {
+        id: response.formVersion.id,
+        version: response.formVersion.version,
+        layoutSchema: response.formVersion.layoutSchema,
+      },
+      defaultActors: actualActors.map((a) => ({
+        id: a.id,
+        taskDefinitionKey: a.taskDefinitionKey,
+        taskName: a.taskName,
+        userId: a.userId,
+        fullName: a.user.displayName || a.user.email,
+        department: a.department,
+        title: a.title,
+        order: a.order,
+        isOverridden: a.isOverridden,
+      })),
+      createdAt: response.createdAt,
+    };
+  }
+
+  /**
+   * Evaluate form variables and simulate execution path on BPMN (REQ-RUN-01).
+   */
+  async previewFlow(
+    requestId: string,
+    values: Record<string, any>,
+  ): Promise<FlowSimulationResult> {
+    const request = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+      include: {
+        procedureVersion: {
+          include: {
+            actorMappings: {
+              include: { defaultUser: true },
+              orderBy: { order: 'asc' },
+            },
+            variableMappings: true,
+          },
+        },
+      },
+    });
+
+    if (!request || !request.procedureVersion) {
+      throw new NotFoundException('Yêu cầu hoặc Phiên bản Thủ tục không tồn tại');
+    }
+
+    if (!request.procedureVersion.bpmnSnapshotXml) {
+      throw new BadRequestException('Thủ tục chưa có sơ đồ BPMN Snapshot');
+    }
+
+    const bpmnStructure = this.bpmnParser.parse(
+      request.procedureVersion.bpmnSnapshotXml,
+    );
+
+    return this.flowSimulation.simulate(
+      bpmnStructure,
+      request.procedureVersion.variableMappings,
+      request.procedureVersion.actorMappings,
+      values || {},
+    );
+  }
+
+  /**
+   * Preview & override actual approvers where allowOverride = true (REQ-RUN-02, ADR-003).
+   */
+  async setActualActors(
+    requestId: string,
+    actors: ActualActorItemDto[],
+    userId: string,
+  ) {
+    const request = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+      include: {
+        procedureVersion: {
+          include: {
+            actorMappings: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Yêu cầu không tồn tại');
+    }
+    if (request.createdById !== userId) {
+      throw new ForbiddenException('Bạn không phải người tạo hồ sơ này');
+    }
+    if (
+      request.status !== RequestStatus.DRAFT &&
+      request.status !== RequestStatus.REQUEST_CHANGES
+    ) {
+      throw new BadRequestException(
+        'Chỉ có thể sửa người duyệt khi hồ sơ ở trạng thái DRAFT hoặc REQUEST_CHANGES',
+      );
+    }
+
+    const mappingMap = new Map(
+      (request.procedureVersion?.actorMappings || []).map((m) => [
+        m.taskDefinitionKey,
+        m,
+      ]),
+    );
+
+    for (const actor of actors) {
+      const mapping = mappingMap.get(actor.taskDefinitionKey);
+      if (mapping && !mapping.allowOverride) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: `Bước duyệt '${mapping.taskName}' không cho phép người trình thay đổi người duyệt.`,
+          code: 'ERR_ACTOR_OVERRIDE_DENIED',
+        });
+      }
+    }
+
+    // Save actual actors
+    for (const actor of actors) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: actor.userId },
+      });
+      if (!user) {
+        throw new BadRequestException(`Không tìm thấy người dùng ${actor.userId}`);
+      }
+
+      const mapping = mappingMap.get(actor.taskDefinitionKey);
+      const taskName = mapping?.taskName || actor.taskDefinitionKey;
+
+      const existing = await this.prisma.requestActualActor.findFirst({
+        where: {
+          responseId: requestId,
+          taskDefinitionKey: actor.taskDefinitionKey,
+        },
+      });
+
+      if (existing) {
+        await this.prisma.requestActualActor.update({
+          where: { id: existing.id },
+          data: {
+            userId: actor.userId,
+            isOverridden: true,
+            order: actor.order ?? existing.order,
+            department: user.department || null,
+            title: user.title || null,
+          },
+        });
+      } else {
+        await this.prisma.requestActualActor.create({
+          data: {
+            responseId: requestId,
+            taskDefinitionKey: actor.taskDefinitionKey,
+            taskName,
+            userId: actor.userId,
+            isOverridden: true,
+            order: actor.order ?? 1,
+            department: user.department || null,
+            title: user.title || null,
+          },
+        });
+      }
+    }
+
+    const updated = await this.prisma.requestActualActor.findMany({
+      where: { responseId: requestId },
+      include: { user: true },
+      orderBy: { order: 'asc' },
+    });
+
+    return {
+      success: true,
+      actualActors: updated.map((a) => ({
+        id: a.id,
+        taskDefinitionKey: a.taskDefinitionKey,
+        taskName: a.taskName,
+        userId: a.userId,
+        fullName: a.user.displayName || a.user.email,
+        department: a.department,
+        title: a.title,
+        isOverridden: a.isOverridden,
+        order: a.order,
+      })),
+    };
+  }
+
+  /**
+   * Submit draft procedure request: start Operaton process instance (REQ-RUN-01, REQ-RUN-02).
+   */
+  async submitProcedureRequest(
+    requestId: string,
+    values: Record<string, any> | undefined,
+    userId: string,
+  ) {
+    const request = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+      include: {
+        procedureVersion: {
+          include: {
+            actorMappings: { include: { defaultUser: true } },
+            variableMappings: true,
+          },
+        },
+        formVersion: true,
+        actualActors: { include: { user: true } },
+      },
+    });
+
+    if (!request || !request.procedureVersion) {
+      throw new NotFoundException('Yêu cầu hoặc phiên bản thủ tục không tồn tại');
+    }
+    if (request.createdById !== userId) {
+      throw new ForbiddenException('Bạn không có quyền nộp hồ sơ này');
+    }
+    if (request.status !== RequestStatus.DRAFT) {
+      throw new BadRequestException('Hồ sơ không ở trạng thái DRAFT');
+    }
+
+    // Upsert any passed form values
+    if (values && Object.keys(values).length > 0) {
+      for (const [key, val] of Object.entries(values)) {
+        await this.prisma.formResponseValue.upsert({
+          where: {
+            responseId_fieldKey: { responseId: requestId, fieldKey: key },
+          },
+          create: {
+            responseId: requestId,
+            fieldKey: key,
+            value: val as Prisma.InputJsonValue,
+          },
+          update: {
+            value: val as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
+    // Load full values
+    const allValRows = await this.prisma.formResponseValue.findMany({
+      where: { responseId: requestId },
+    });
+    const currentValues: Record<string, any> = {};
+    for (const row of allValRows) {
+      currentValues[row.fieldKey] = row.value;
+    }
+
+    // Run simulation to identify active branches
+    const bpmnStructure = this.bpmnParser.parse(
+      request.procedureVersion.bpmnSnapshotXml || '',
+    );
+    const simulation = this.flowSimulation.simulate(
+      bpmnStructure,
+      request.procedureVersion.variableMappings,
+      request.procedureVersion.actorMappings,
+      currentValues,
+    );
+
+    // Validate active tasks have assignees
+    const assignedMap = new Map(
+      request.actualActors.map((a) => [a.taskDefinitionKey, a]),
+    );
+    const missingActors: string[] = [];
+    for (const taskKey of simulation.activeTaskKeys) {
+      if (!assignedMap.has(taskKey)) {
+        missingActors.push(taskKey);
+      }
+    }
+
+    if (missingActors.length > 0) {
+      throw new BadRequestException({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: `Thiếu người duyệt cho các bước: ${missingActors.join(', ')}`,
+        code: 'VAL-ACT-EMPTY',
+      });
+    }
+
+    // Build Operaton variables
+    const opVars: Record<string, { value: any; type: string }> = {};
+
+    // 1. Condition variables
+    for (const [k, v] of Object.entries(simulation.variables)) {
+      opVars[k] = {
+        value: v,
+        type:
+          typeof v === 'number'
+            ? 'Long'
+            : typeof v === 'boolean'
+            ? 'Boolean'
+            : 'String',
+      };
+    }
+
+    // 2. Actor variables
+    const taskMap = new Map(bpmnStructure.tasks.map((t) => [t.taskKey, t]));
+    for (const actor of request.actualActors) {
+      opVars[`actor_${actor.taskDefinitionKey}`] = {
+        value: actor.userId,
+        type: 'String',
+      };
+      opVars[`actorList_${actor.taskDefinitionKey}`] = {
+        value: JSON.stringify([actor.userId]),
+        type: 'String',
+      };
+
+      const bpmnTask = taskMap.get(actor.taskDefinitionKey);
+      if (bpmnTask?.assigneeVariable) {
+        opVars[bpmnTask.assigneeVariable] = {
+          value: actor.userId,
+          type: 'String',
+        };
+      }
+      if (bpmnTask?.collectionVariable) {
+        opVars[bpmnTask.collectionVariable] = {
+          value: JSON.stringify([actor.userId]),
+          type: 'String',
+        };
+      }
+    }
+
+    // Defensive fallback: populate any missing default actor mappings from procedureVersion
+    for (const mapping of request.procedureVersion.actorMappings) {
+      if (mapping.defaultUserId) {
+        if (!opVars[`actor_${mapping.taskDefinitionKey}`]) {
+          opVars[`actor_${mapping.taskDefinitionKey}`] = {
+            value: mapping.defaultUserId,
+            type: 'String',
+          };
+        }
+        const bpmnTask = taskMap.get(mapping.taskDefinitionKey);
+        if (bpmnTask?.assigneeVariable && !opVars[bpmnTask.assigneeVariable]) {
+          opVars[bpmnTask.assigneeVariable] = {
+            value: mapping.defaultUserId,
+            type: 'String',
+          };
+        }
+      }
+    }
+
+    const definitionId =
+      request.procedureVersion.operatonDefinitionId ||
+      request.procedureVersion.operatonDefinitionKey;
+
+    if (!definitionId) {
+      throw new BadRequestException('Thủ tục chưa có liên kết ProcessDefinition Operaton');
+    }
+
+    // Start instance in Operaton
+    const instanceRes = await this.operatonClient.startInstance(
+      definitionId,
+      requestId,
+      opVars,
+    );
+
+    // Fetch initial active tasks
+    const activeTasks = await this.operatonClient.getActiveTasks(instanceRes.id);
+
+    // Populate TaskProjection
+    for (const t of activeTasks) {
+      const assigned = assignedMap.get(t.taskDefinitionKey);
+      const assigneeId = assigned?.userId || userId;
+
+      await this.prisma.taskProjection.upsert({
+        where: { operatonTaskId: t.id },
+        create: {
+          operatonTaskId: t.id,
+          processInstanceId: instanceRes.id,
+          responseId: requestId,
+          taskDefinitionKey: t.taskDefinitionKey,
+          taskName: t.name || t.taskDefinitionKey,
+          assigneeId,
+          status: 'ACTIVE',
+        },
+        update: {
+          status: 'ACTIVE',
+          assigneeId,
+        },
+      });
+    }
+
+    // Update FormResponse status
+    const updated = await this.prisma.formResponse.update({
+      where: { id: requestId },
+      data: {
+        status: RequestStatus.PENDING,
+        operatonProcessInstanceId: instanceRes.id,
+        operatonProcessDefinitionId: instanceRes.definitionId,
+        businessKey: requestId,
+      },
+    });
+
+    // Record submit comment
+    await this.prisma.requestComment.create({
+      data: {
+        responseId: requestId,
+        authorId: userId,
+        body: '[SUBMIT] Đã nộp hồ sơ yêu cầu phê duyệt',
+      },
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      operatonProcessInstanceId: instanceRes.id,
+      businessKey: requestId,
+      activeTasks: activeTasks.map((t) => ({
+        taskId: t.id,
+        taskDefinitionKey: t.taskDefinitionKey,
+        taskName: t.name,
+        assigneeId: assignedMap.get(t.taskDefinitionKey)?.userId,
+      })),
+    };
+  }
+
+  /**
+   * Get BPMN execution status, active & completed tasks (REQ-RUN-01, REQ-RUN-04).
+   */
+  async getFlowStatus(requestId: string, userId: string) {
+    const request = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+      include: {
+        procedureVersion: {
+          include: { procedure: true },
+        },
+        actualActors: {
+          include: { user: true },
+          orderBy: { order: 'asc' },
+        },
+        projectedTasks: {
+          include: { assignee: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        comments: {
+          include: { author: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Yêu cầu không tồn tại');
+    }
+
+    const activeTasks = request.projectedTasks.filter((t) => t.status === 'ACTIVE');
+    const completedTasks = request.projectedTasks.filter((t) => t.status === 'COMPLETED');
+
+    return {
+      processInstanceId: request.operatonProcessInstanceId,
+      status: request.status,
+      bpmn20Xml: request.procedureVersion?.bpmnSnapshotXml || null,
+      activeTaskKeys: activeTasks.map((t) => t.taskDefinitionKey),
+      completedTaskKeys: completedTasks.map((t) => t.taskDefinitionKey),
+      activeTasks: activeTasks.map((t) => ({
+        id: t.id,
+        operatonTaskId: t.operatonTaskId,
+        taskDefinitionKey: t.taskDefinitionKey,
+        taskName: t.taskName,
+        assignee: {
+          id: t.assignee.id,
+          name: t.assignee.displayName || t.assignee.email,
+          department: t.assignee.department,
+          title: t.assignee.title,
+        },
+        createdAt: t.createdAt,
+      })),
+      actualActors: request.actualActors.map((a) => ({
+        taskDefinitionKey: a.taskDefinitionKey,
+        taskName: a.taskName,
+        assignee: {
+          id: a.user.id,
+          name: a.user.displayName || a.user.email,
+          department: a.department || a.user.department,
+          title: a.title || a.user.title,
+        },
+        isOverridden: a.isOverridden,
+        order: a.order,
+      })),
+      history: request.comments.map((c) => {
+        let action = 'COMMENT';
+        let comment = c.body;
+        if (c.body.startsWith('[') && c.body.includes(']')) {
+          action = c.body.substring(1, c.body.indexOf(']'));
+          comment = c.body.substring(c.body.indexOf(']') + 1).trim();
+        }
+        return {
+          id: c.id,
+          action,
+          actorName: c.author?.displayName || c.author?.email || 'Hệ thống',
+          timestamp: c.createdAt,
+          comment,
+        };
+      }),
+    };
+  }
+
+  /**
+   * Fast query for "My Duties" from TaskProjection (REQ-RUN-04).
+   */
+  async getMyDuties(userId: string, query: DutyQueryDto) {
+    const statusFilter = query.tab === 'completed' ? 'COMPLETED' : 'ACTIVE';
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.TaskProjectionWhereInput = {
+      assigneeId: userId,
+      status: statusFilter,
+    };
+
+    if (query.procedureId) {
+      where.response = {
+        procedureVersion: {
+          procedureId: query.procedureId,
+        },
+      };
+    }
+
+    if (query.search) {
+      const q = query.search.trim();
+      where.OR = [
+        { taskName: { contains: q, mode: 'insensitive' } },
+        {
+          response: {
+            procedureVersion: {
+              procedure: {
+                name: { contains: q, mode: 'insensitive' },
+              },
+            },
+          },
+        },
+        {
+          response: {
+            createdBy: {
+              displayName: { contains: q, mode: 'insensitive' },
+            },
+          },
+        },
+      ];
+    }
+
+    const [total, tasks] = await Promise.all([
+      this.prisma.taskProjection.count({ where }),
+      this.prisma.taskProjection.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          response: {
+            include: {
+              createdBy: true,
+              procedureVersion: {
+                include: { procedure: true },
+              },
+              signatureFields: {
+                where: { assigneeId: userId, status: 'PENDING' },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const items = tasks.map((t) => ({
+      // flattened fields for RequestSummary compatibility:
+      id: t.response.id,
+      status: t.response.status,
+      formId: t.response.formVersionId,
+      formName: t.response.procedureVersion?.procedure?.name || t.taskName,
+      formVersionId: t.response.formVersionId,
+      version: 1,
+      createdById: t.response.createdById,
+      clonedFromId: t.response.clonedFromId,
+      cloneMode: t.response.cloneMode,
+      createdAt: t.response.createdAt,
+      dutyStatus: t.status === 'ACTIVE' ? 'PENDING' : 'DONE',
+      dutyAction: null,
+      dutyType: (t.response.signatureFields || []).length > 0 ? 'APPROVAL' : 'APPROVAL',
+      dutyCreatedAt: t.createdAt,
+      dutyActedAt: t.completedAt,
+      // procedure and task details:
+      taskId: t.operatonTaskId,
+      taskDefinitionKey: t.taskDefinitionKey,
+      taskName: t.taskName,
+      dueDate: t.dueDate,
+      taskStatus: t.status,
+      requiresSignature: (t.response.signatureFields || []).length > 0,
+      pendingSignatureCount: (t.response.signatureFields || []).length,
+      procedure: t.response.procedureVersion?.procedure
+        ? {
+            id: t.response.procedureVersion.procedure.id,
+            code: t.response.procedureVersion.procedure.code,
+            name: t.response.procedureVersion.procedure.name,
+          }
+        : null,
+      request: {
+        id: t.response.id,
+        status: t.response.status,
+        procedureName:
+          t.response.procedureVersion?.procedure?.name || 'Hồ sơ đề xuất',
+        procedureCode: t.response.procedureVersion?.procedure?.code,
+        requester: {
+          id: t.response.createdBy.id,
+          name: t.response.createdBy.displayName || t.response.createdBy.email,
+          department: t.response.createdBy.department,
+          title: t.response.createdBy.title,
+        },
+        createdAt: t.response.createdAt,
+      },
+    }));
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      meta: buildMeta(total, page, limit),
+    };
+  }
+
+  /**
+   * Approve task on Operaton with PDF Signature enforcement (REQ-RUN-03).
+   */
+  async approveTask(
+    requestId: string,
+    taskId: string,
+    comment: string | undefined,
+    userId: string,
+  ) {
+    const task = await this.prisma.taskProjection.findUnique({
+      where: { operatonTaskId: taskId },
+    });
+
+    if (!task || task.responseId !== requestId) {
+      throw new NotFoundException('Không tìm thấy nhiệm vụ');
+    }
+    if (task.assigneeId !== userId) {
+      throw new ForbiddenException('Bạn không được giao thực hiện nhiệm vụ này');
+    }
+    if (task.status !== 'ACTIVE') {
+      throw new BadRequestException('Nhiệm vụ này đã được hoàn thành hoặc đã bị hủy');
+    }
+
+    // Check mandatory signature enforcement
+    const pendingSigs = await this.prisma.signatureField.findMany({
+      where: {
+        responseId: requestId,
+        assigneeId: userId,
+        status: 'PENDING',
+        OR: [
+          { taskDefinitionKey: task.taskDefinitionKey },
+          { taskDefinitionKey: null },
+        ],
+      },
+    });
+
+    if (pendingSigs.length > 0) {
+      throw new UnprocessableEntityException({
+        statusCode: 422,
+        error: 'Unprocessable Entity',
+        message:
+          'Bạn chưa ký số vào tài liệu đính kèm của bước duyệt này. Vui lòng thực hiện ký số trước khi duyệt.',
+        code: 'ERR_SIGNATURE_REQUIRED',
+        details: {
+          pendingSignatureFieldIds: pendingSigs.map((s) => s.id),
+        },
+      });
+    }
+
+    // Complete task on Operaton
+    await this.operatonClient.completeTask(taskId, {
+      approved: { value: true, type: 'Boolean' },
+    });
+
+    // Update TaskProjection to COMPLETED
+    await this.prisma.taskProjection.update({
+      where: { operatonTaskId: taskId },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+
+    // Check next active tasks
+    const remainingTasks = await this.operatonClient.getActiveTasks(
+      task.processInstanceId,
+    );
+
+    let nextStatus: RequestStatus = RequestStatus.PENDING;
+    if (remainingTasks.length > 0) {
+      // Find actual actors for remaining tasks
+      const actualActors = await this.prisma.requestActualActor.findMany({
+        where: { responseId: requestId },
+      });
+      const actorMap = new Map(actualActors.map((a) => [a.taskDefinitionKey, a]));
+
+      for (const nextT of remainingTasks) {
+        const assigned = actorMap.get(nextT.taskDefinitionKey);
+        await this.prisma.taskProjection.upsert({
+          where: { operatonTaskId: nextT.id },
+          create: {
+            operatonTaskId: nextT.id,
+            processInstanceId: task.processInstanceId,
+            responseId: requestId,
+            taskDefinitionKey: nextT.taskDefinitionKey,
+            taskName: nextT.name || nextT.taskDefinitionKey,
+            assigneeId: assigned?.userId || userId,
+            status: 'ACTIVE',
+          },
+          update: {
+            status: 'ACTIVE',
+          },
+        });
+      }
+    } else {
+      // Flow completed
+      nextStatus = RequestStatus.APPROVED;
+      await this.prisma.formResponse.update({
+        where: { id: requestId },
+        data: { status: RequestStatus.APPROVED },
+      });
+    }
+
+    // Add audit comment
+    await this.prisma.requestComment.create({
+      data: {
+        responseId: requestId,
+        authorId: userId,
+        body: `[APPROVE] ${comment || 'Đã phê duyệt'}`,
+      },
+    });
+
+    return {
+      success: true,
+      status: nextStatus,
+      message: 'Phê duyệt thành công',
+    };
+  }
+
+  /**
+   * Stamp PDF signature and approve task atomically (REQ-RUN-03).
+   */
+  async signAndApproveTask(
+    requestId: string,
+    taskId: string,
+    payload: SignAndApproveDto,
+    userId: string,
+  ) {
+    const task = await this.prisma.taskProjection.findUnique({
+      where: { operatonTaskId: taskId },
+    });
+
+    if (!task || task.responseId !== requestId) {
+      throw new NotFoundException('Không tìm thấy nhiệm vụ');
+    }
+    if (task.assigneeId !== userId) {
+      throw new ForbiddenException('Bạn không được giao thực hiện nhiệm vụ này');
+    }
+
+    // Stamp pending signature fields
+    const sigWhere: Prisma.SignatureFieldWhereInput = {
+      responseId: requestId,
+      assigneeId: userId,
+      status: 'PENDING',
+    };
+    if (payload.signatureFieldIds && payload.signatureFieldIds.length > 0) {
+      sigWhere.id = { in: payload.signatureFieldIds };
+    }
+
+    await this.prisma.signatureField.updateMany({
+      where: sigWhere,
+      data: {
+        status: 'SIGNED',
+        signatureImage: payload.signatureImage || null,
+        signatureName: payload.signatureName || null,
+        signedAt: new Date(),
+      },
+    });
+
+    // Now proceed with normal approve
+    return this.approveTask(requestId, taskId, payload.comment, userId);
+  }
+
+  /**
+   * Reject task and cancel Operaton instance (REQ-RUN-04).
+   */
+  async rejectTask(
+    requestId: string,
+    taskId: string,
+    comment: string | undefined,
+    userId: string,
+  ) {
+    const task = await this.prisma.taskProjection.findUnique({
+      where: { operatonTaskId: taskId },
+    });
+
+    if (!task || task.responseId !== requestId) {
+      throw new NotFoundException('Không tìm thấy nhiệm vụ');
+    }
+    if (task.assigneeId !== userId) {
+      throw new ForbiddenException('Bạn không được giao thực hiện nhiệm vụ này');
+    }
+
+    try {
+      await this.operatonClient.deleteProcessInstance(
+        task.processInstanceId,
+        `Từ chối bởi người duyệt: ${comment || ''}`,
+      );
+    } catch (err: any) {
+      // Instance might have ended or been deleted
+    }
+
+    // Cancel all remaining tasks for this response
+    await this.prisma.taskProjection.updateMany({
+      where: { responseId: requestId, status: 'ACTIVE' },
+      data: { status: 'CANCELLED' },
+    });
+
+    // Mark pending signatures as REJECTED
+    await this.prisma.signatureField.updateMany({
+      where: { responseId: requestId, status: 'PENDING' },
+      data: { status: 'REJECTED' },
+    });
+
+    await this.prisma.formResponse.update({
+      where: { id: requestId },
+      data: { status: RequestStatus.REJECTED },
+    });
+
+    await this.prisma.requestComment.create({
+      data: {
+        responseId: requestId,
+        authorId: userId,
+        body: `[REJECT] ${comment || 'Đã từ chối hồ sơ'}`,
+      },
+    });
+
+    return {
+      success: true,
+      status: RequestStatus.REJECTED,
+      message: 'Đã từ chối hồ sơ thành công',
+    };
+  }
+
+  /**
+   * Request changes on task, sending it back to requester (REQ-RUN-04).
+   */
+  async requestChangesTask(
+    requestId: string,
+    taskId: string,
+    comment: string | undefined,
+    userId: string,
+  ) {
+    const task = await this.prisma.taskProjection.findUnique({
+      where: { operatonTaskId: taskId },
+    });
+
+    if (!task || task.responseId !== requestId) {
+      throw new NotFoundException('Không tìm thấy nhiệm vụ');
+    }
+    if (task.assigneeId !== userId) {
+      throw new ForbiddenException('Bạn không được giao thực hiện nhiệm vụ này');
+    }
+
+    await this.prisma.formResponse.update({
+      where: { id: requestId },
+      data: { status: RequestStatus.REQUEST_CHANGES },
+    });
+
+    await this.prisma.requestComment.create({
+      data: {
+        responseId: requestId,
+        authorId: userId,
+        body: `[REQUEST_CHANGES] ${comment || 'Yêu cầu chỉnh sửa và bổ sung thông tin'}`,
+      },
+    });
+
+    return {
+      success: true,
+      status: RequestStatus.REQUEST_CHANGES,
+      message: 'Đã gửi yêu cầu chỉnh sửa đến người trình',
+    };
+  }
+
+  /**
+   * Resubmit request with updated values (REQ-RUN-04).
+   */
+  async resubmitProcedureRequest(
+    requestId: string,
+    dto: ResubmitRequestDto,
+    userId: string,
+  ) {
+    const request = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+      include: {
+        procedureVersion: {
+          include: { variableMappings: true, actorMappings: true },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Hồ sơ không tồn tại');
+    }
+    if (request.createdById !== userId) {
+      throw new ForbiddenException('Bạn không phải người tạo hồ sơ');
+    }
+    if (request.status !== RequestStatus.REQUEST_CHANGES) {
+      throw new BadRequestException('Hồ sơ không ở trạng thái REQUEST_CHANGES');
+    }
+
+    if (dto.values && Object.keys(dto.values).length > 0) {
+      for (const [key, val] of Object.entries(dto.values)) {
+        await this.prisma.formResponseValue.upsert({
+          where: {
+            responseId_fieldKey: { responseId: requestId, fieldKey: key },
+          },
+          create: {
+            responseId: requestId,
+            fieldKey: key,
+            value: val as Prisma.InputJsonValue,
+          },
+          update: {
+            value: val as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
+    await this.prisma.formResponse.update({
+      where: { id: requestId },
+      data: { status: RequestStatus.PENDING },
+    });
+
+    await this.prisma.requestComment.create({
+      data: {
+        responseId: requestId,
+        authorId: userId,
+        body: `[RESUBMIT] ${dto.comment || 'Đã chỉnh sửa và nộp lại hồ sơ'}`,
+      },
+    });
+
+    return {
+      success: true,
+      status: RequestStatus.PENDING,
+      message: 'Đã nộp lại hồ sơ thành công',
+    };
+  }
+
+  /**
+   * Cancel running procedure request (REQ-RUN-04).
+   */
+  async cancelProcedureRequest(
+    requestId: string,
+    reason: string | undefined,
+    userId: string,
+  ) {
+    const request = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Hồ sơ không tồn tại');
+    }
+    if (request.createdById !== userId) {
+      throw new ForbiddenException('Bạn không phải người tạo hồ sơ');
+    }
+
+    if (request.operatonProcessInstanceId) {
+      try {
+        await this.operatonClient.deleteProcessInstance(
+          request.operatonProcessInstanceId,
+          reason || 'Hồ sơ bị hủy bởi người trình',
+        );
+      } catch (err: any) {
+        // Already ended or deleted
+      }
+    }
+
+    await this.prisma.taskProjection.updateMany({
+      where: { responseId: requestId, status: 'ACTIVE' },
+      data: { status: 'CANCELLED' },
+    });
+
+    await this.prisma.formResponse.update({
+      where: { id: requestId },
+      data: { status: RequestStatus.CANCELLED },
+    });
+
+    await this.prisma.requestComment.create({
+      data: {
+        responseId: requestId,
+        authorId: userId,
+        body: `[CANCEL] ${reason || 'Đã hủy hồ sơ'}`,
+      },
+    });
+
+    return {
+      success: true,
+      status: RequestStatus.CANCELLED,
+      message: 'Hồ sơ đã được hủy bỏ thành công',
+    };
+  }
+
+  /**
+   * Clone procedure request with reset / reserve mode (REQ-RUN-04).
+   */
+  async cloneProcedureRequest(
+    requestId: string,
+    mode: 'reset' | 'reserve',
+    userId: string,
+  ) {
+    const source = await this.prisma.formResponse.findUnique({
+      where: { id: requestId },
+      include: {
+        values: true,
+        actualActors: true,
+        procedureVersion: true,
+      },
+    });
+
+    if (!source || !source.procedureVersion) {
+      throw new NotFoundException('Hồ sơ gốc không tồn tại hoặc không gắn với Thủ tục');
+    }
+
+    // Find latest published version of the procedure
+    const latestVersion = await this.prisma.procedureVersion.findFirst({
+      where: {
+        procedureId: source.procedureVersion.procedureId,
+        status: 'PUBLISHED',
+      },
+      orderBy: { version: 'desc' },
+      include: {
+        actorMappings: { include: { defaultUser: true } },
+      },
+    });
+
+    if (!latestVersion || !latestVersion.formVersionId) {
+      throw new BadRequestException('Không tìm thấy phiên bản xuất bản mới nhất của Thủ tục này');
+    }
+
+    // Create new DRAFT FormResponse
+    const newRequest = await this.prisma.formResponse.create({
+      data: {
+        procedureVersionId: latestVersion.id,
+        formVersionId: latestVersion.formVersionId,
+        createdById: userId,
+        status: RequestStatus.DRAFT,
+        clonedFromId: source.id,
+        cloneMode: mode,
+      },
+    });
+
+    // Copy values
+    if (source.values.length > 0) {
+      await this.prisma.formResponseValue.createMany({
+        data: source.values.map((v) => ({
+          responseId: newRequest.id,
+          fieldKey: v.fieldKey,
+          value: v.value as Prisma.InputJsonValue,
+        })),
+      });
+    }
+
+    // Setup actors
+    const sourceActorMap = new Map(source.actualActors.map((a) => [a.taskDefinitionKey, a]));
+
+    for (const mapping of latestVersion.actorMappings) {
+      const sourceActor = sourceActorMap.get(mapping.taskDefinitionKey);
+      if (mode === 'reserve' && sourceActor && sourceActor.isOverridden && mapping.allowOverride) {
+        await this.prisma.requestActualActor.create({
+          data: {
+            responseId: newRequest.id,
+            taskDefinitionKey: mapping.taskDefinitionKey,
+            taskName: mapping.taskName,
+            userId: sourceActor.userId,
+            isOverridden: true,
+            order: mapping.order,
+            department: sourceActor.department,
+            title: sourceActor.title,
+          },
+        });
+      } else if (mapping.defaultUserId) {
+        await this.prisma.requestActualActor.create({
+          data: {
+            responseId: newRequest.id,
+            taskDefinitionKey: mapping.taskDefinitionKey,
+            taskName: mapping.taskName,
+            userId: mapping.defaultUserId,
+            isOverridden: false,
+            order: mapping.order,
+            department: mapping.defaultUser?.department || null,
+            title: mapping.defaultUser?.title || null,
+          },
+        });
+      }
+    }
+
+    return {
+      newRequestId: newRequest.id,
+      status: newRequest.status,
+      procedureVersionId: latestVersion.id,
+      message: 'Sao chép hồ sơ thành công',
     };
   }
 }

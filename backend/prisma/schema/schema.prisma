@@ -43,6 +43,8 @@ model User {
   signatureFields SignatureField[]
   comments         RequestComment[]
   commentReactions CommentReaction[]
+  actualActors     RequestActualActor[]
+  projectedTasks   TaskProjection[]
 
   // ── procedure ───────────────────────────────────────────────
   createdProcedures          Procedure[]              @relation("ProcedureCreator")

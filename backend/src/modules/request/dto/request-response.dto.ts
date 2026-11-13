@@ -74,6 +74,12 @@ export class RequestSummaryDto {
   @ApiProperty()
   createdAt!: Date;
 
+  @ApiPropertyOptional({ nullable: true, type: String })
+  procedureVersionId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Object })
+  procedure?: { id: string; code: string; name: string } | null;
+
   // ── duty scope only: the caller's own task ("duty") on this request ───────
 
   @ApiPropertyOptional({
@@ -142,6 +148,15 @@ export class RequestDetailDto extends RequestSummaryDto {
       "The request's full approval flow — steps, assignees and their tasks.",
   })
   flow!: FlowStatusDto;
+
+  @ApiPropertyOptional({ type: Array, description: 'Actual actors assigned to BPMN user tasks' })
+  actualActors?: any[];
+
+  @ApiPropertyOptional({ type: Array, description: 'Projected active/completed tasks' })
+  projectedTasks?: any[];
+
+  @ApiPropertyOptional({ type: Array, description: 'Signature fields placed on documents' })
+  signatureFields?: any[];
 }
 
 /** Shape of a request row joined with form + values (query payload). */

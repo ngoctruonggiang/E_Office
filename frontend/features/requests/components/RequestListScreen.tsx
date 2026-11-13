@@ -278,10 +278,14 @@ export function RequestListScreen({ scope }: { scope: RequestScope }) {
                     >
                       <TD>
                         <TableCellStack
-                          primary={r.formName}
+                          primary={r.procedure?.name || r.formName}
                           secondary={
                             <span className="font-mono">
-                              #{shortId(r.id)} · v{r.version}
+                              #{shortId(r.id)} · {r.procedure ? (
+                                <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{r.procedure.code}</span>
+                              ) : (
+                                `v${r.version}`
+                              )}
                             </span>
                           }
                         />
@@ -298,6 +302,8 @@ export function RequestListScreen({ scope }: { scope: RequestScope }) {
                             status={r.dutyStatus}
                             action={r.dutyAction}
                             type={r.dutyType}
+                            taskName={(r as any).taskName}
+                            requiresSignature={(r as any).requiresSignature}
                           />
                         </TD>
                       )}

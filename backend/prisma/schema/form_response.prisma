@@ -15,9 +15,15 @@ enum RequestStatus {
 
 model FormResponse {
   id            String        @id @default(uuid())
+  procedureVersionId String?
   formVersionId String
   createdById   String
   status        RequestStatus @default(DRAFT)
+
+  // Operaton BPMN integration
+  operatonProcessInstanceId   String?
+  operatonProcessDefinitionId String?
+  businessKey                 String?
 
   // Clone lineage (clone-reserve / clone-reset both set this).
   clonedFromId String?
@@ -27,10 +33,11 @@ model FormResponse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  formVersion FormVersion   @relation(fields: [formVersionId], references: [id])
-  createdBy   User          @relation("RequestCreator", fields: [createdById], references: [id])
-  clonedFrom  FormResponse? @relation("RequestClone", fields: [clonedFromId], references: [id])
-  clones      FormResponse[] @relation("RequestClone")
+  procedureVersion ProcedureVersion? @relation(fields: [procedureVersionId], references: [id])
+  formVersion      FormVersion       @relation(fields: [formVersionId], references: [id])
+  createdBy        User              @relation("RequestCreator", fields: [createdById], references: [id])
+  clonedFrom       FormResponse?     @relation("RequestClone", fields: [clonedFromId], references: [id])
+  clones           FormResponse[]    @relation("RequestClone")
 
   values          FormResponseValue[]
   documents       RequestDocument[]
@@ -38,7 +45,58 @@ model FormResponse {
   flowInstance    FlowInstance?
   signatureFields SignatureField[]
   comments        RequestComment[]
+  actualActors    RequestActualActor[]
+  projectedTasks  TaskProjection[]
 
   @@index([createdById])
   @@index([status])
+  @@index([procedureVersionId])
+  @@index([operatonProcessInstanceId])
+  @@index([businessKey])
+}
+
+model RequestActualActor {
+  id                 String   @id @default(uuid())
+  responseId         String
+  taskDefinitionKey  String
+  taskName           String
+  userId             String
+  isOverridden       Boolean  @default(false)
+  order              Int      @default(0)
+  department         String?
+  title              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  response FormResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id])
+
+  @@index([responseId])
+  @@index([userId])
+  @@index([responseId, taskDefinitionKey])
+  @@map("request_actual_actors")
+}
+
+model TaskProjection {
+  id                 String    @id @default(uuid())
+  operatonTaskId     String    @unique
+  processInstanceId  String
+  responseId         String
+  taskDefinitionKey  String
+  taskName           String
+  assigneeId         String
+  status             String    @default("ACTIVE") // ACTIVE | COMPLETED | CANCELLED
+  dueDate            DateTime?
+  claimedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  response FormResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  assignee User         @relation(fields: [assigneeId], references: [id])
+
+  @@index([assigneeId, status])
+  @@index([responseId])
+  @@index([processInstanceId])
+  @@map("task_projections")
 }
