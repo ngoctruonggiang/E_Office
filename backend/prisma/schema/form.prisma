@@ -47,9 +47,10 @@ model FormVersion {
   layoutSchema Json?
   createdAt    DateTime @default(now())
 
-  form      Form           @relation(fields: [formId], references: [id])
-  fields    FormField[]
-  responses FormResponse[]
+  form              Form               @relation(fields: [formId], references: [id])
+  fields            FormField[]
+  responses         FormResponse[]
+  procedureVersions ProcedureVersion[]
 
   @@unique([formId, version])
 }

@@ -17,6 +17,7 @@ import { CommentModule } from './modules/comment/comment.module';
 import { SigningModule } from './modules/signing/signing.module';
 import { SignatureModule } from './modules/signature/signature.module';
 import { OperatonModule } from './modules/operaton/operaton.module';
+import { ProcedureModule } from './modules/procedure/procedure.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AllExceptionsFilter } from './core/common/filters/all-exceptions.filter';
 
@@ -53,6 +54,7 @@ import { AllExceptionsFilter } from './core/common/filters/all-exceptions.filter
     SigningModule,
     SignatureModule,
     OperatonModule,
+    ProcedureModule,
   ],
   controllers: [AppController],
   providers: [

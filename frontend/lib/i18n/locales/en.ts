@@ -60,6 +60,7 @@ export const en: Dictionary = {
     viewable: "Watching",
     forms: "Forms",
     workflows: "Workflows (BPMN)",
+    procedures: "Procedures",
     reports: "Reports",
     profile: "Profile",
     accounts: "Accounts",

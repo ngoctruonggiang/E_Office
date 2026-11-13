@@ -1,0 +1,107 @@
+// ─────────────────────────────────────────────────────────────
+// Procedure (Thủ tục nghiệp vụ e-Office)
+//
+// Kết nối FormVersion (Phase 2) với Operaton ProcessDefinition (Phase 3).
+// Lưu vết ánh xạ người duyệt (ActorMapping) và biến rẽ nhánh (VariableMapping).
+// Tuân thủ ADR-005 (Version Pinning) & ADR-003 (Requestor Actor Override).
+// ─────────────────────────────────────────────────────────────
+
+enum ProcedureStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ActorAssigneeType {
+  DIRECT_USER
+  DYNAMIC_RULE
+}
+
+enum VariableMappingType {
+  NUMBER
+  STRING
+  BOOLEAN
+}
+
+model Procedure {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  name            String
+  description     String?
+  departmentId    String?
+  icon            String?  @default("file-text")
+  color           String?  @default("#2563eb")
+  activeVersionId String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy     User               @relation("ProcedureCreator", fields: [createdById], references: [id])
+  activeVersion ProcedureVersion?  @relation("ActiveProcedureVersion", fields: [activeVersionId], references: [id])
+  versions      ProcedureVersion[] @relation("ProcedureVersions")
+
+  @@map("procedures")
+}
+
+model ProcedureVersion {
+  id                        String          @id @default(uuid())
+  procedureId               String
+  version                   Int
+  status                    ProcedureStatus @default(DRAFT)
+  formVersionId             String?
+  operatonDefinitionId      String?
+  operatonDefinitionKey     String?
+  operatonDefinitionVersion Int?
+  operatonDeploymentId      String?
+  bpmnSnapshotXml           String?         @db.Text
+  createdById               String
+  publishedAt               DateTime?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+
+  procedure        Procedure                  @relation("ProcedureVersions", fields: [procedureId], references: [id], onDelete: Cascade)
+  formVersion      FormVersion?               @relation(fields: [formVersionId], references: [id])
+  createdBy        User                       @relation("ProcedureVersionCreator", fields: [createdById], references: [id])
+  actorMappings    ProcedureActorMapping[]
+  variableMappings ProcedureVariableMapping[]
+  activeFor        Procedure[]                @relation("ActiveProcedureVersion")
+
+  @@unique([procedureId, version])
+  @@index([procedureId, status])
+  @@map("procedure_versions")
+}
+
+model ProcedureActorMapping {
+  id                 String            @id @default(uuid())
+  procedureVersionId String
+  taskDefinitionKey  String
+  taskName           String
+  order              Int
+  assigneeType       ActorAssigneeType @default(DIRECT_USER)
+  defaultUserId      String?
+  ruleConfig         Json?
+  allowOverride      Boolean           @default(true)
+  required           Boolean           @default(true)
+  isMultiInstance    Boolean           @default(false)
+  collectionVariable String?
+
+  procedureVersion ProcedureVersion @relation(fields: [procedureVersionId], references: [id], onDelete: Cascade)
+  defaultUser      User?            @relation("ProcedureActorUser", fields: [defaultUserId], references: [id], onDelete: SetNull)
+
+  @@unique([procedureVersionId, taskDefinitionKey])
+  @@map("procedure_actor_mappings")
+}
+
+model ProcedureVariableMapping {
+  id                 String              @id @default(uuid())
+  procedureVersionId String
+  operatonVarName    String
+  formFieldKey       String
+  variableType       VariableMappingType @default(NUMBER)
+  fallbackValue      String?
+
+  procedureVersion ProcedureVersion @relation(fields: [procedureVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([procedureVersionId, operatonVarName])
+  @@map("procedure_variable_mappings")
+}

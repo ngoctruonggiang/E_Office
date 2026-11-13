@@ -208,3 +208,101 @@ export function getFlowStatus(
     .get(`/approval-flows/${requestId}`)
     .set('Authorization', bearer(token));
 }
+
+// ── procedure controller ───────────────────────────────────────────────────
+
+export function createProcedure(
+  app: INestApplication,
+  token: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .post('/procedures')
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function getProcedure(
+  app: INestApplication,
+  token: string,
+  id: string,
+) {
+  return request(app.getHttpServer())
+    .get(`/procedures/${id}`)
+    .set('Authorization', bearer(token));
+}
+
+export function listProcedures(
+  app: INestApplication,
+  token: string,
+  query?: Record<string, any>,
+) {
+  const req = request(app.getHttpServer())
+    .get('/procedures')
+    .set('Authorization', bearer(token));
+  return query ? req.query(query) : req;
+}
+
+export function getProcedureVersion(
+  app: INestApplication,
+  token: string,
+  versionId: string,
+) {
+  return request(app.getHttpServer())
+    .get(`/procedures/versions/${versionId}`)
+    .set('Authorization', bearer(token));
+}
+
+export function updateProcedureVersion(
+  app: INestApplication,
+  token: string,
+  versionId: string,
+  body: unknown,
+) {
+  return request(app.getHttpServer())
+    .put(`/procedures/versions/${versionId}`)
+    .set('Authorization', bearer(token))
+    .send(body as any);
+}
+
+export function validateProcedureVersion(
+  app: INestApplication,
+  token: string,
+  versionId: string,
+) {
+  return request(app.getHttpServer())
+    .post(`/procedures/versions/${versionId}/validate`)
+    .set('Authorization', bearer(token));
+}
+
+export function publishProcedureVersion(
+  app: INestApplication,
+  token: string,
+  versionId: string,
+) {
+  return request(app.getHttpServer())
+    .post(`/procedures/versions/${versionId}/publish`)
+    .set('Authorization', bearer(token));
+}
+
+export function createProcedureDraftVersion(
+  app: INestApplication,
+  token: string,
+  procedureId: string,
+) {
+  return request(app.getHttpServer())
+    .post(`/procedures/${procedureId}/draft`)
+    .set('Authorization', bearer(token));
+}
+
+export function getProcedureDirectory(
+  app: INestApplication,
+  token: string,
+  query?: Record<string, any>,
+) {
+  const req = request(app.getHttpServer())
+    .get('/procedures/helpers/directory')
+    .set('Authorization', bearer(token));
+  return query ? req.query(query) : req;
+}
+

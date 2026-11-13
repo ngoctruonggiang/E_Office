@@ -27,8 +27,11 @@ model User {
   // URL (PNG/JPEG); the name is rendered cursive under the image when stamping.
   signatureName  String?
   signatureImage String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  department     String?
+  title          String?
+  phone          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // ── back-relations ─────────────────────────────────────────
   createdForms    Form[]           @relation("FormCreator")
@@ -40,6 +43,11 @@ model User {
   signatureFields SignatureField[]
   comments         RequestComment[]
   commentReactions CommentReaction[]
+
+  // ── procedure ───────────────────────────────────────────────
+  createdProcedures          Procedure[]              @relation("ProcedureCreator")
+  createdProcedureVersions   ProcedureVersion[]       @relation("ProcedureVersionCreator")
+  procedureActorAssignments  ProcedureActorMapping[]  @relation("ProcedureActorUser")
 
   // ── signing ────────────────────────────────────────────────
   signingEnvelopes   SigningEnvelope[]  @relation("SigningEnvelopeOwner")

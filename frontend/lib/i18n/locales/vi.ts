@@ -61,6 +61,7 @@ export const vi = {
     viewable: "Danh sách theo dõi",
     forms: "Biểu mẫu",
     workflows: "Luồng quy trình (BPMN)",
+    procedures: "Thủ tục (Procedures)",
     reports: "Báo cáo",
     profile: "Hồ sơ",
     accounts: "Tài khoản",

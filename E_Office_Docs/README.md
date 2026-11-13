@@ -61,13 +61,20 @@ E_Office_Docs/
 │   │   ├── api-contract.md                    # Endpoints (/forms/versions/:versionId) & Request EAV Validator
 │   │   ├── ui-wireframe-and-rules.md          # GAFOOD × RAMP FormBuilder 3 cột, Live Preview, FormRenderer & i18n
 │   │   └── test-plan.md                       # Unit, E2E & UI verification cases (TC-FRM-*)
-│   └── phase-3-operaton-adapter/              # [APPROVED] Phase 3: Operaton Adapter & BPMN Engine
+│   ├── phase-3-operaton-adapter/              # [VERIFIED] Phase 3: Operaton Adapter & BPMN Engine
 │       ├── prd.md                             # Mục tiêu, Phạm vi & Acceptance Criteria
 │       ├── docker-setup-spec.md               # Cấu hình Docker Compose, operaton_db & healthcheck
 │       ├── bpmn-modeling-standards.md         # Quy chuẩn đặt tên biến, UserTask, Gateway & Multi-instance
 │       ├── api-contract.md                    # API Endpoints (/operaton/*) & Operaton REST client
 │       ├── web-modeler-spec.md                # Đặc tả Web BPMN Modeler (nhúng bpmn-js trên e-Office)
 │       └── test-plan.md                       # Kế hoạch test container, parser, execution & error handling
+│   └── phase-4-procedure-mapping/             # [VERIFIED] Phase 4: Lớp Cầu nối Procedure
+│       ├── prd.md                             # Mục tiêu, Phạm vi & Acceptance Criteria (REQ-PRC-01, REQ-PRC-02)
+│       ├── data-model.md                      # Prisma schema (Procedure, ProcedureVersion, ActorMapping, VariableMapping)
+│       ├── mapping-rules.md                   # Quy tắc trích xuất biến, gán tác nhân kèm phòng ban/chức danh, validation
+│       ├── api-contract.md                    # REST Endpoints (/procedures/*), Directory Helper & Version Pinning
+│       ├── ui-wireframe-and-rules.md          # Wireframe Danh mục & Trình thiết kế Thủ tục 4 bước chuẩn GAFOOD × RAMP
+│       └── test-plan.md                       # Kế hoạch kiểm thử Unit, E2E & Validation Engine (TC-PRC-*)
 └── 03-checklists/
     ├── doc-review-checklist.md                # Cổng duyệt tài liệu trước khi code
     └── code-compliance-checklist.md           # Cổng kiểm tra code khớp tài liệu trước khi đóng Phase
