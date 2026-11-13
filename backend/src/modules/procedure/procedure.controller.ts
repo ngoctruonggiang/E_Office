@@ -44,7 +44,7 @@ export class ProcedureController {
   // ── Helper Endpoints (placed before :id to prevent route clash) ──
 
   @Get('helpers/directory')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get active users directory with department & title' })
   @ApiOkResponse({ description: 'List of users for actor assignment autocomplete' })
   async getDirectory(
@@ -55,7 +55,7 @@ export class ProcedureController {
   }
 
   @Get('helpers/forms')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get available forms and their versions' })
   @ApiOkResponse({ description: 'List of forms with versions and fields' })
   async getHelperForms() {
@@ -63,7 +63,7 @@ export class ProcedureController {
   }
 
   @Get('helpers/workflows')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get available Operaton workflows (category: e-Office)' })
   @ApiOkResponse({ description: 'List of process definitions from Operaton' })
   async getHelperWorkflows() {
@@ -81,7 +81,7 @@ export class ProcedureController {
   }
 
   @Put('versions/:versionId')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update draft configuration (Form, Workflow, Actors, Variables)' })
   @ApiParam({ name: 'versionId', description: 'ProcedureVersion UUID (must be DRAFT)' })
   @ApiOkResponse({ description: 'Updated ProcedureVersion' })
@@ -94,7 +94,7 @@ export class ProcedureController {
 
   @Post('versions/:versionId/validate')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Validate draft version against pre-publish rules' })
   @ApiParam({ name: 'versionId', description: 'ProcedureVersion UUID' })
   @ApiOkResponse({ description: 'Validation results with errors and warnings' })
@@ -106,7 +106,7 @@ export class ProcedureController {
 
   @Post('versions/:versionId/publish')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Publish procedure version (version pinning)' })
   @ApiParam({ name: 'versionId', description: 'ProcedureVersion UUID (must be DRAFT)' })
   @ApiOkResponse({ description: 'Publication result with pinned version' })
@@ -130,7 +130,7 @@ export class ProcedureController {
   }
 
   @Post()
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create new procedure and initialize draft v1' })
   @ApiCreatedResponse({ description: 'Procedure created with initial draft version' })
   async create(
@@ -149,7 +149,7 @@ export class ProcedureController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update procedure metadata' })
   @ApiParam({ name: 'id', description: 'Procedure UUID' })
   @ApiOkResponse({ description: 'Updated procedure' })
@@ -161,7 +161,7 @@ export class ProcedureController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Delete procedure' })
   @ApiParam({ name: 'id', description: 'Procedure UUID' })
   @ApiOkResponse({ description: 'Deleted procedure' })
@@ -170,7 +170,7 @@ export class ProcedureController {
   }
 
   @Get(':id/versions')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all versions of a procedure' })
   @ApiParam({ name: 'id', description: 'Procedure UUID' })
   @ApiOkResponse({ description: 'List of procedure versions' })
@@ -179,7 +179,7 @@ export class ProcedureController {
   }
 
   @Post(':id/draft')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create new draft version cloned from latest/active version' })
   @ApiParam({ name: 'id', description: 'Procedure UUID' })
   @ApiCreatedResponse({ description: 'New draft version created' })

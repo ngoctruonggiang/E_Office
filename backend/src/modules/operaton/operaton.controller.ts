@@ -41,7 +41,7 @@ export class OperatonController {
   }
 
   @Get('definitions')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'List deployed workflows filtered by category (default: e-Office)' })
   @ApiOkResponse({ description: 'List of process definitions' })
   async getDefinitions(
@@ -52,7 +52,7 @@ export class OperatonController {
   }
 
   @Get('definitions/:id/xml')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get raw BPMN 2.0 XML for a deployed process' })
   @ApiParam({ name: 'id', description: 'Process definition ID' })
   @ApiOkResponse({ description: 'BPMN XML string' })
@@ -62,7 +62,7 @@ export class OperatonController {
   }
 
   @Get('definitions/:id/structure')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get parsed structure (Tasks, Gateways, Variables) from BPMN XML' })
   @ApiParam({ name: 'id', description: 'Process definition ID' })
   @ApiOkResponse({ description: 'Parsed BPMN Structure' })
@@ -71,7 +71,7 @@ export class OperatonController {
   }
 
   @Post('deploy')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Deploy a BPMN workflow from Web Modeler or XML' })
   @ApiCreatedResponse({ description: 'Deployment result with new definition ID' })
   async deployWorkflow(

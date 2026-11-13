@@ -29,7 +29,25 @@ export class RolesGuard implements CanActivate {
       .switchToHttp()
       .getRequest<{ user?: AuthenticatedUser }>();
     const user = request.user;
-    if (!user || !roles.includes(user.role)) {
+    if (!user || !user.role) {
+      throw new ForbiddenException('Insufficient role');
+    }
+
+    const normalizedUserRole = user.role.trim().toLowerCase();
+    const hasRole = roles.some((r) => {
+      const normalizedRequired = r.trim().toLowerCase();
+      if (normalizedRequired === normalizedUserRole) return true;
+      // In e-Office, 'admin' and 'super_admin' grant full administrative privileges
+      if (
+        (normalizedUserRole === 'admin' || normalizedUserRole === 'super_admin') &&
+        (normalizedRequired === 'admin' || normalizedRequired === 'super_admin')
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (!hasRole) {
       throw new ForbiddenException('Insufficient role');
     }
     return true;
