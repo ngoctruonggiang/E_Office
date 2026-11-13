@@ -232,7 +232,7 @@ export default function WorkflowsListPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <Link
-                      href={`/workflows/designer`}
+                      href={`/workflows/designer?id=${encodeURIComponent(def.id)}`}
                       className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
                     >
                       Mở Modeler &rarr;

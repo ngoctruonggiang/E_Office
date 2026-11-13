@@ -69,8 +69,28 @@ const DEFAULT_STARTER_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 interface WebBpmnModelerProps {
   initialXml?: string;
   initialWorkflowName?: string;
+  initialProcessKey?: string;
   onBack?: () => void;
   onDeploySuccess?: (deploymentId: string) => void;
+}
+
+function toProcessKey(name: string): string {
+  const normalized = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized ? `eoffice_proc_${normalized}` : 'eoffice_new_workflow';
+}
+
+function escapeXml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 interface DiagramElement {
@@ -96,6 +116,7 @@ interface DiagramElement {
 export function WebBpmnModeler({
   initialXml,
   initialWorkflowName = 'Quy trình Trình ký (e-Office)',
+  initialProcessKey,
   onBack,
   onDeploySuccess,
 }: WebBpmnModelerProps) {
@@ -105,6 +126,21 @@ export function WebBpmnModeler({
   const modelerRef = useRef<BpmnModeler | null>(null);
 
   const [workflowName, setWorkflowName] = useState(initialWorkflowName);
+  const [processKey, setProcessKey] = useState(
+    initialProcessKey ||
+      (initialWorkflowName && initialWorkflowName !== 'Quy trình Trình ký (e-Office)'
+        ? toProcessKey(initialWorkflowName)
+        : 'eoffice_new_workflow'),
+  );
+  const [isCustomKey, setIsCustomKey] = useState(!!initialProcessKey);
+
+  const handleWorkflowNameChange = (name: string) => {
+    setWorkflowName(name);
+    if (!isCustomKey) {
+      setProcessKey(toProcessKey(name));
+    }
+  };
+
   const [selectedElement, setSelectedElement] = useState<DiagramElement | null>(null);
   const [elementProps, setElementProps] = useState<{
     id: string;
@@ -145,6 +181,24 @@ export function WebBpmnModeler({
     modelerRef.current = modeler;
 
     const xmlToLoad = initialXml || DEFAULT_STARTER_BPMN;
+
+    // Extract process ID & Name from XML if not explicitly provided
+    const matchProcess = xmlToLoad.match(/<bpmn:process\s+([^>]*?)>/i);
+    if (matchProcess) {
+      const attrs = matchProcess[1];
+      const idMatch = attrs.match(/\bid=["']([^"']+)["']/i);
+      const nameMatch = attrs.match(/\bname=["']([^"']+)["']/i);
+      if (idMatch && !initialProcessKey) {
+        setProcessKey(idMatch[1]);
+        if (idMatch[1] !== 'eoffice_new_workflow') {
+          setIsCustomKey(true);
+        }
+      }
+      if (nameMatch && (!initialWorkflowName || initialWorkflowName === 'Quy trình Trình ký (e-Office)')) {
+        setWorkflowName(nameMatch[1]);
+      }
+    }
+
     modeler
       .importXML(xmlToLoad)
       .then(() => {
@@ -199,6 +253,9 @@ export function WebBpmnModeler({
         }
       } else if (type === 'bpmn:SequenceFlow') {
         conditionExpr = bo.conditionExpression?.body || '';
+      } else if (type === 'bpmn:Process') {
+        if (bo.id) setProcessKey(bo.id);
+        if (bo.name) setWorkflowName(bo.name);
       }
 
       setElementProps({
@@ -223,7 +280,7 @@ export function WebBpmnModeler({
         canvasRef.current.innerHTML = '';
       }
     };
-  }, [initialXml]);
+  }, [initialXml, initialProcessKey, initialWorkflowName]);
 
   // Update properties of the selected element
   const handlePropChange = (field: string, value: string | boolean) => {
@@ -234,8 +291,15 @@ export function WebBpmnModeler({
 
     if (field === 'name') {
       modeling.updateProperties(selectedElement, { name: value });
+      if (selectedElement.type === 'bpmn:Process') {
+        setWorkflowName(value as string);
+      }
     } else if (field === 'id') {
       modeling.updateProperties(selectedElement, { id: value });
+      if (selectedElement.type === 'bpmn:Process') {
+        setProcessKey(value as string);
+        setIsCustomKey(true);
+      }
     } else if (field === 'assignee') {
       modeling.updateProperties(selectedElement, {
         'camunda:assignee': value,
@@ -257,6 +321,65 @@ export function WebBpmnModeler({
     }
   };
 
+  // Helper to ensure XML contains user's current workflowName and processKey
+  const prepareExportXml = async (): Promise<string> => {
+    if (!modelerRef.current) throw new Error('Modeler chưa sẵn sàng');
+
+    const cleanProcessKey = (processKey.trim() || toProcessKey(workflowName)).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanWorkflowName = workflowName.trim() || 'Quy trình Trình ký (e-Office)';
+
+    // Attempt to update root process element properties in diagram-js
+    try {
+      const canvas = modelerRef.current.get('canvas');
+      const rootElement = canvas?.getRootElement();
+      const modeling = modelerRef.current.get('modeling');
+      if (rootElement && modeling) {
+        modeling.updateProperties(rootElement, {
+          id: cleanProcessKey,
+          name: cleanWorkflowName,
+        });
+      }
+    } catch {
+      // Fallback to XML replacement
+    }
+
+    let { xml } = await modelerRef.current.saveXML({ format: true });
+    if (!xml) throw new Error('Không thể trích xuất XML từ sơ đồ');
+
+    // Find old process ID
+    const oldIdMatch = xml.match(/<bpmn:process\s+[^>]*?id=["']([^"']+)["']/i);
+    const oldProcessId = oldIdMatch ? oldIdMatch[1] : 'eoffice_new_workflow';
+
+    // Replace process id
+    xml = xml.replace(
+      /(<bpmn:process\s+[^>]*?id=["'])[^"']+(["'])/i,
+      `$1${cleanProcessKey}$2`
+    );
+
+    // Replace or add process name
+    if (/<bpmn:process\s+[^>]*?name=["'][^"']*["']/i.test(xml)) {
+      xml = xml.replace(
+        /(<bpmn:process\s+[^>]*?name=["'])[^"']*(["'])/i,
+        `$1${escapeXml(cleanWorkflowName)}$2`
+      );
+    } else {
+      xml = xml.replace(
+        /<bpmn:process\s+/i,
+        `<bpmn:process name="${escapeXml(cleanWorkflowName)}" `
+      );
+    }
+
+    // Replace BPMNPlane bpmnElement so diagram shapes link to updated process ID
+    if (oldProcessId && oldProcessId !== cleanProcessKey) {
+      xml = xml.replace(
+        new RegExp(`(<bpmndi:BPMNPlane\\s+[^>]*?)bpmnElement=["']${oldProcessId}["']`, 'gi'),
+        `$1bpmnElement="${cleanProcessKey}"`
+      );
+    }
+
+    return xml;
+  };
+
   // Deploy to Operaton
   const handleDeploy = async () => {
     if (!modelerRef.current) return;
@@ -264,8 +387,7 @@ export function WebBpmnModeler({
     setFeedback(null);
 
     try {
-      const { xml } = await modelerRef.current.saveXML({ format: true });
-      if (!xml) throw new Error('Không thể trích xuất XML từ sơ đồ');
+      const xml = await prepareExportXml();
 
       // Pre-deploy validation
       if (!xml.includes('bpmn:startEvent') && !xml.includes('startEvent')) {
@@ -309,13 +431,13 @@ export function WebBpmnModeler({
   const handleExport = async () => {
     if (!modelerRef.current) return;
     try {
-      const { xml } = await modelerRef.current.saveXML({ format: true });
-      if (!xml) return;
+      const xml = await prepareExportXml();
+      const cleanKey = (processKey.trim() || toProcessKey(workflowName)).replace(/[^a-zA-Z0-9_-]/g, '_');
       const blob = new Blob([xml], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${workflowName.toLowerCase().replace(/\s+/g, '-')}.bpmn`;
+      a.download = `${cleanKey}.bpmn`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
@@ -338,8 +460,23 @@ export function WebBpmnModeler({
         try {
           await modelerRef.current.importXML(xml);
           const canvas = modelerRef.current.get('canvas');
-          canvas.zoom('fit-viewport');
+          canvas?.zoom('fit-viewport');
           setFeedback(null);
+
+          // Extract process id & name from imported XML
+          const matchProcess = xml.match(/<bpmn:process\s+([^>]*?)>/i);
+          if (matchProcess) {
+            const attrs = matchProcess[1];
+            const idMatch = attrs.match(/\bid=["']([^"']+)["']/i);
+            const nameMatch = attrs.match(/\bname=["']([^"']+)["']/i);
+            if (idMatch) {
+              setProcessKey(idMatch[1]);
+              setIsCustomKey(true);
+            }
+            if (nameMatch) {
+              setWorkflowName(nameMatch[1]);
+            }
+          }
         } catch (err: unknown) {
           setFeedback({
             type: 'error',
@@ -367,13 +504,28 @@ export function WebBpmnModeler({
           )}
           <div className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-emerald-600" />
-            <input
-              type="text"
-              value={workflowName}
-              onChange={(e) => setWorkflowName(e.target.value)}
-              className="rounded-md border border-transparent px-2 py-1 text-sm font-semibold text-slate-900 hover:border-slate-300 focus:border-emerald-500 focus:bg-white focus:outline-none"
-              placeholder={t('workflow.modeler.workflowName')}
-            />
+            <div className="flex flex-col">
+              <input
+                type="text"
+                value={workflowName}
+                onChange={(e) => handleWorkflowNameChange(e.target.value)}
+                className="h-6 rounded border border-transparent px-1.5 text-sm font-semibold text-slate-900 hover:border-slate-300 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                placeholder={t('workflow.modeler.workflowName')}
+              />
+              <div className="flex items-center gap-1 px-1.5 text-[11px] text-slate-400">
+                <span>Mã key:</span>
+                <input
+                  type="text"
+                  value={processKey}
+                  onChange={(e) => {
+                    setProcessKey(e.target.value);
+                    setIsCustomKey(true);
+                  }}
+                  className="h-4 rounded border border-transparent px-1 font-mono text-[11px] text-slate-600 hover:border-slate-300 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  placeholder="eoffice_proc_..."
+                />
+              </div>
+            </div>
           </div>
           <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
             {t('workflow.modeler.categoryBadge')}
