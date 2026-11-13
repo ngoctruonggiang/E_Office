@@ -48,6 +48,30 @@ export class AuthService {
     });
   }
 
+  getSsoConfig() {
+    if ('getSsoConfig' in this.provider && typeof (this.provider as any).getSsoConfig === 'function') {
+      return (this.provider as any).getSsoConfig();
+    }
+    return {
+      enabled: false,
+      provider: 'none',
+    };
+  }
+
+  exchangeSsoToken(
+    dto: { accessToken: string; idToken?: string },
+    deviceId: string,
+  ): Promise<AuthResult> {
+    if (this.provider.exchangeSsoToken) {
+      return this.provider.exchangeSsoToken({
+        accessToken: dto.accessToken,
+        idToken: dto.idToken,
+        deviceId,
+      });
+    }
+    throw new Error('Current AuthProvider does not support SSO exchange');
+  }
+
   logout(
     user: AuthenticatedUser,
     accessExpiresInSec: number,

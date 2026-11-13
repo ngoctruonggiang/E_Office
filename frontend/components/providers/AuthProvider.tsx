@@ -24,6 +24,7 @@ type AuthContextValue = {
   /** True until the initial "am I logged in?" check resolves. */
   loading: boolean;
   signIn: (input: LoginInput) => Promise<void>;
+  signInWithSso: (tokens: { accessToken: string; idToken?: string }) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -77,6 +78,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me);
   }, []);
 
+  const signInWithSso = useCallback(
+    async (tokens: { accessToken: string; idToken?: string }) => {
+      const res = await authApi.exchangeSsoSession(tokens);
+      setTokens({
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+        deviceId: res.deviceId,
+      });
+      const me = await authApi.getMe();
+      setUser(me);
+    },
+    [],
+  );
+
   const signOut = useCallback(async () => {
     await authApi.logout();
     clearTokens();
@@ -85,8 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, loading, signIn, signOut }),
-    [user, loading, signIn, signOut],
+    () => ({ user, loading, signIn, signInWithSso, signOut }),
+    [user, loading, signIn, signInWithSso, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

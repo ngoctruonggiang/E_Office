@@ -10,6 +10,15 @@ class AuthUserView {
 
   @ApiProperty()
   role!: string;
+
+  @ApiProperty({ required: false })
+  displayName?: string | null;
+
+  @ApiProperty({ required: false })
+  department?: string | null;
+
+  @ApiProperty({ required: false })
+  title?: string | null;
 }
 
 /** Shape returned by login / register / refresh. */
@@ -31,6 +40,9 @@ export class AuthResponseDto {
     id: string;
     email: string;
     role: string;
+    displayName?: string | null;
+    department?: string | null;
+    title?: string | null;
   };
 
   @ApiProperty({
@@ -49,6 +61,9 @@ export class AuthResponseDto {
         id: result.user.userId,
         email: result.user.email,
         role: result.user.role,
+        displayName: result.user.displayName,
+        department: result.user.department,
+        title: result.user.title,
       },
       deviceId,
     };

@@ -19,6 +19,9 @@ export interface AuthenticatedUser {
   userId: string;
   email: string;
   role: string;
+  displayName?: string | null;
+  department?: string | null;
+  title?: string | null;
   /** JWT id of the access token — needed for blacklisting on logout. */
   jti: string;
   /** Device/session identifier — one refresh token per device. */
@@ -32,6 +35,9 @@ export interface JwtPayload {
   sub: string; // userId
   email: string;
   role: string;
+  displayName?: string | null;
+  department?: string | null;
+  title?: string | null;
   jti: string;
   deviceId: string;
 }
@@ -45,7 +51,11 @@ export interface AuthTokens {
 }
 
 export interface AuthResult {
-  user: Pick<AuthenticatedUser, 'userId' | 'email' | 'role'>;
+  user: Pick<AuthenticatedUser, 'userId' | 'email' | 'role'> & {
+    displayName?: string | null;
+    department?: string | null;
+    title?: string | null;
+  };
   tokens: AuthTokens;
 }
 
@@ -67,6 +77,12 @@ export interface RefreshInput {
   deviceId: string;
 }
 
+export interface SsoExchangeInput {
+  accessToken: string;
+  idToken?: string;
+  deviceId: string;
+}
+
 export interface LogoutInput {
   userId: string;
   deviceId: string;
@@ -83,4 +99,6 @@ export interface AuthProvider {
   /** Validates + rotates the refresh token, returning a fresh token pair. */
   refresh(input: RefreshInput): Promise<AuthResult>;
   logout(input: LogoutInput): Promise<void>;
+  /** Validates external Keycloak OIDC access token and links user session. */
+  exchangeSsoToken?(input: SsoExchangeInput): Promise<AuthResult>;
 }

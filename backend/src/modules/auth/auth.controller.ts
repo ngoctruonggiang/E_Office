@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -117,5 +118,33 @@ export class AuthController {
       user.accessExp - Math.floor(Date.now() / 1000),
     );
     await this.authService.logout(user, remaining, true);
+  }
+
+  @Public()
+  @Get('sso/config')
+  @ApiOperation({ summary: 'Get Keycloak SSO configuration' })
+  getSsoConfig() {
+    return this.authService.getSsoConfig();
+  }
+
+  @Public()
+  @Post('sso/session')
+  @RateLimit({ limit: 15, ttl: 60 })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Exchange Keycloak OIDC token for e-Office session' })
+  @ApiOkResponse({ description: 'SSO Session created.', type: AuthResponseDto })
+  async exchangeSso(
+    @Body() dto: { accessToken: string; idToken?: string; deviceId?: string },
+  ): Promise<AuthResponseDto> {
+    const deviceId = this.authService.resolveDeviceId(dto.deviceId);
+    const result = await this.authService.exchangeSsoToken(dto, deviceId);
+    return AuthResponseDto.fromResult(result, deviceId);
+  }
+
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  getProfile(@CurrentUser() user: AuthenticatedUser) {
+    return user;
   }
 }

@@ -22,6 +22,15 @@ export class UserResponseDto {
   isActive!: boolean;
 
   @ApiProperty({ nullable: true, type: String })
+  department!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  title!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  keycloakSub!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
   signatureName!: string | null;
 
   @ApiProperty({
@@ -41,6 +50,9 @@ export class UserResponseDto {
       displayName: user.displayName,
       role: user.role,
       isActive: user.isActive,
+      department: user.department ?? null,
+      title: user.title ?? null,
+      keycloakSub: user.keycloakSub ?? null,
       signatureName: user.signatureName,
       signatureImage: user.signatureImage,
       createdAt: user.createdAt,

@@ -54,7 +54,9 @@ export class LocalAuthProvider implements AuthProvider {
     // Run bcrypt.compare even when the user is missing to blunt timing/user
     // enumeration; always return the same generic error.
     const ok =
-      user && (await bcrypt.compare(input.password, user.passwordHash));
+      user &&
+      user.passwordHash &&
+      (await bcrypt.compare(input.password, user.passwordHash));
     if (!user || !ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -96,7 +98,14 @@ export class LocalAuthProvider implements AuthProvider {
     user: UserEntity,
     deviceId: string,
   ): Promise<AuthResult> {
-    const subject = { userId: user.id, email: user.email, role: user.role };
+    const subject = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      displayName: user.displayName,
+      department: user.department,
+      title: user.title,
+    };
     const tokens = await this.tokens.issueTokenPair(subject, deviceId);
     await this.tokens.cacheSession(subject);
     return { user: subject, tokens };

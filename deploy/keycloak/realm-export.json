@@ -1,0 +1,220 @@
+{
+  "id": "e-office",
+  "realm": "e-office",
+  "displayName": "e-Office Enterprise",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 86400,
+  "ssoSessionMaxLifespan": 2592000,
+  "roles": {
+    "realm": [
+      {
+        "id": "role-admin",
+        "name": "admin",
+        "description": "Administrator Role with full permissions"
+      },
+      {
+        "id": "role-user",
+        "name": "user",
+        "description": "Standard User Role"
+      }
+    ]
+  },
+  "defaultRoles": [
+    "user"
+  ],
+  "clients": [
+    {
+      "id": "client-eoffice-web",
+      "clientId": "eoffice-web",
+      "name": "e-Office Web Application",
+      "rootUrl": "http://localhost:3000",
+      "baseUrl": "http://localhost:3000",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "+"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {
+          "id": "mapper-department",
+          "name": "Department Mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "department",
+            "claim.name": "department",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "id": "mapper-jobtitle",
+          "name": "Job Title Mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "jobTitle",
+            "claim.name": "jobTitle",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "id": "client-eoffice-api",
+      "clientId": "eoffice-api",
+      "name": "e-Office Backend API",
+      "enabled": true,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "id": "usr-admin-001",
+      "username": "admin@gafood.local",
+      "email": "admin@gafood.local",
+      "firstName": "Quản Trị Viên",
+      "lastName": "Hệ Thống",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "user"
+      ],
+      "attributes": {
+        "department": [
+          "Ban Giám Đốc"
+        ],
+        "jobTitle": [
+          "Giám Đốc Chuyển Đổi Số"
+        ]
+      }
+    },
+    {
+      "id": "usr-buyer-002",
+      "username": "buyer@gafood.local",
+      "email": "buyer@gafood.local",
+      "firstName": "Văn Mua Sắm",
+      "lastName": "Nguyễn",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ],
+      "attributes": {
+        "department": [
+          "Phòng Mua Hàng"
+        ],
+        "jobTitle": [
+          "Trưởng Phòng Mua Hàng"
+        ]
+      }
+    },
+    {
+      "id": "usr-accountant-003",
+      "username": "accountant@gafood.local",
+      "email": "accountant@gafood.local",
+      "firstName": "Thị Kế Toán",
+      "lastName": "Lê",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ],
+      "attributes": {
+        "department": [
+          "Phòng Tài Chính Kế Toán"
+        ],
+        "jobTitle": [
+          "Kế Toán Trưởng"
+        ]
+      }
+    },
+    {
+      "id": "usr-staff-004",
+      "username": "staff@gafood.local",
+      "email": "staff@gafood.local",
+      "firstName": "Văn Nhân Viên",
+      "lastName": "Trần",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ],
+      "attributes": {
+        "department": [
+          "Phòng Hành Chính Nhân Sự"
+        ],
+        "jobTitle": [
+          "Chuyên Viên Hành Chính"
+        ]
+      }
+    }
+  ]
+}

@@ -14,6 +14,9 @@ interface IssueSubject {
   userId: string;
   email: string;
   role: string;
+  displayName?: string | null;
+  department?: string | null;
+  title?: string | null;
 }
 
 /**
@@ -61,6 +64,9 @@ export class TokenService {
       sub: subject.userId,
       email: subject.email,
       role: subject.role,
+      displayName: subject.displayName,
+      department: subject.department,
+      title: subject.title,
       jti,
       deviceId,
     };

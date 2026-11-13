@@ -18,11 +18,13 @@ datasource db {
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   displayName  String?
   // Role kept as a plain string ("user" | "admin") for simplicity.
   role         String   @default("user")
   isActive     Boolean  @default(true)
+  // OIDC Keycloak Subject Identifier
+  keycloakSub  String?  @unique
   // Reusable online-signature, edited on the profile page. The image is a data
   // URL (PNG/JPEG); the name is rendered cursive under the image when stamping.
   signatureName  String?

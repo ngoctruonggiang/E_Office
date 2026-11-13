@@ -6,10 +6,13 @@
 export class UserEntity {
   id!: string;
   email!: string;
-  passwordHash!: string;
+  passwordHash!: string | null;
   displayName!: string | null;
   role!: string;
   isActive!: boolean;
+  keycloakSub?: string | null;
+  department?: string | null;
+  title?: string | null;
   signatureName!: string | null;
   signatureImage!: string | null;
   createdAt!: Date;

@@ -8,6 +8,7 @@ import { TokenService } from './token/token.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RedisThrottleGuard } from './guards/redis-throttle.guard';
 import { LocalAuthProvider } from './providers/local-auth.provider';
+import { KeycloakOidcProvider } from './providers/keycloak-oidc.provider';
 import { AUTH_PROVIDER } from './interfaces/auth-provider.interface';
 
 /**
@@ -27,8 +28,9 @@ import { AUTH_PROVIDER } from './interfaces/auth-provider.interface';
     TokenService,
     JwtStrategy,
     RedisThrottleGuard,
+    LocalAuthProvider,
     // ── SSO seam ──────────────────────────────────────────────
-    { provide: AUTH_PROVIDER, useClass: LocalAuthProvider },
+    { provide: AUTH_PROVIDER, useClass: KeycloakOidcProvider },
   ],
   exports: [AuthService, TokenService],
 })

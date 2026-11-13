@@ -1,6 +1,23 @@
 import { apiFetch } from "@/lib/api/client";
 import { getDeviceId, getRefreshToken } from "@/lib/auth/storage";
-import type { AuthResponse, LoginInput, UserProfile } from "../types/auth";
+import type { AuthResponse, LoginInput, SsoConfig, UserProfile } from "../types/auth";
+
+/** GET /auth/sso/config — retrieve Keycloak SSO endpoints. */
+export function getSsoConfig(): Promise<SsoConfig> {
+  return apiFetch<SsoConfig>("/auth/sso/config", { auth: false });
+}
+
+/** POST /auth/sso/session — exchange Keycloak token for e-Office session. */
+export function exchangeSsoSession(input: {
+  accessToken: string;
+  idToken?: string;
+}): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/auth/sso/session", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({ ...input, deviceId: getDeviceId() ?? undefined }),
+  });
+}
 
 /** POST /auth/login — exchange credentials for a token pair. */
 export function login(input: LoginInput): Promise<AuthResponse> {
