@@ -40,76 +40,105 @@ export function BpmnFlowViewer({
     if (!containerRef.current || !xml) return;
 
     let viewer: any = null;
+    let canceled = false;
     setLoading(true);
     setError(null);
+
+    // Clean container in case of remount
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
 
     try {
       viewer = new BpmnNavigatedViewer({
         container: containerRef.current,
-        keyboard: { bindTo: document },
       });
       viewerRef.current = viewer;
 
-      viewer.importXML(xml).then(() => {
-        setLoading(false);
-        const canvas = viewer.get('canvas');
-        canvas.zoom('fit-viewport');
+      viewer
+        .importXML(xml)
+        .then(() => {
+          if (canceled) return;
+          setLoading(false);
+          setError(null);
 
-        // Apply highlights to elements
-        const elementRegistry = viewer.get('elementRegistry');
-        const eventBus = viewer.get('eventBus');
+          try {
+            const canvas = viewer.get('canvas');
+            canvas?.zoom('fit-viewport');
 
-        // Register click handler
-        if (onTaskClick) {
-          eventBus.on('element.click', (event: any) => {
-            const element = event.element;
-            if (element && element.type === 'bpmn:UserTask') {
-              onTaskClick(element.id);
+            // Apply highlights to elements
+            const eventBus = viewer.get('eventBus');
+
+            // Register click handler
+            if (onTaskClick) {
+              eventBus.on('element.click', (event: any) => {
+                if (canceled) return;
+                const element = event.element;
+                if (element && element.type === 'bpmn:UserTask') {
+                  onTaskClick(element.id);
+                }
+              });
             }
-          });
-        }
 
-        // 1. Highlight completed tasks (Live mode)
-        for (const taskKey of completedTaskKeys) {
-          canvas.addMarker(taskKey, 'bpmn-node-completed');
-        }
+            // 1. Highlight completed tasks (Live mode)
+            for (const taskKey of completedTaskKeys) {
+              canvas.addMarker(taskKey, 'bpmn-node-completed');
+            }
 
-        // 2. Highlight active / current tasks
-        for (const taskKey of activeTaskKeys) {
-          if (mode === 'live') {
-            canvas.addMarker(taskKey, 'bpmn-node-current');
-          } else {
-            canvas.addMarker(taskKey, 'bpmn-node-predicted-active');
+            // 2. Highlight active / current tasks
+            for (const taskKey of activeTaskKeys) {
+              if (mode === 'live') {
+                canvas.addMarker(taskKey, 'bpmn-node-current');
+              } else {
+                canvas.addMarker(taskKey, 'bpmn-node-predicted-active');
+              }
+            }
+
+            // 3. Highlight bypassed tasks
+            for (const taskKey of bypassedTaskKeys) {
+              canvas.addMarker(taskKey, 'bpmn-node-bypassed');
+            }
+
+            // 4. Highlight flows
+            for (const flowId of activeFlowIds) {
+              canvas.addMarker(flowId, 'bpmn-flow-active');
+            }
+            for (const flowId of bypassedFlowIds) {
+              canvas.addMarker(flowId, 'bpmn-flow-bypassed');
+            }
+          } catch {
+            // ignore canvas errors during fast unmount
           }
-        }
-
-        // 3. Highlight bypassed tasks
-        for (const taskKey of bypassedTaskKeys) {
-          canvas.addMarker(taskKey, 'bpmn-node-bypassed');
-        }
-
-        // 4. Highlight flows
-        for (const flowId of activeFlowIds) {
-          canvas.addMarker(flowId, 'bpmn-flow-active');
-        }
-        for (const flowId of bypassedFlowIds) {
-          canvas.addMarker(flowId, 'bpmn-flow-bypassed');
-        }
-      }).catch((err: any) => {
-        console.error('BPMN Import error:', err);
-        setError('Không thể kết xuất sơ đồ quy trình BPMN');
-        setLoading(false);
-      });
+        })
+        .catch((err: any) => {
+          if (canceled) return;
+          const errMsg = err?.message || String(err);
+          if (errMsg.includes('root-0') || errMsg.includes('destroyed')) {
+            return;
+          }
+          console.error('BPMN Import error:', err);
+          setError('Không thể kết xuất sơ đồ quy trình BPMN');
+          setLoading(false);
+        });
     } catch (err: any) {
+      if (canceled) return;
       console.error('BPMN viewer init error:', err);
       setError('Lỗi khởi tạo sơ đồ BPMN');
       setLoading(false);
     }
 
     return () => {
+      canceled = true;
       if (viewer) {
-        viewer.destroy();
+        try {
+          viewer.destroy();
+        } catch {
+          // ignore destroy errors
+        }
         viewerRef.current = null;
+      }
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
       }
     };
   }, [

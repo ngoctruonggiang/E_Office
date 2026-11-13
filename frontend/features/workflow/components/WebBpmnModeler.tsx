@@ -132,11 +132,15 @@ export function WebBpmnModeler({
   useEffect(() => {
     if (!canvasRef.current) return;
 
+    let canceled = false;
+
+    // Clean container in case of StrictMode or remount
+    if (canvasRef.current) {
+      canvasRef.current.innerHTML = '';
+    }
+
     const modeler = new BpmnModeler({
       container: canvasRef.current,
-      keyboard: {
-        bindTo: document,
-      },
     });
     modelerRef.current = modeler;
 
@@ -144,18 +148,31 @@ export function WebBpmnModeler({
     modeler
       .importXML(xmlToLoad)
       .then(() => {
-        const canvas = modeler.get('canvas');
-        canvas.zoom('fit-viewport');
+        if (canceled) return;
+        setFeedback(null);
+        try {
+          const canvas = modeler.get('canvas');
+          canvas?.zoom('fit-viewport');
+        } catch {
+          // ignore fast unmount zoom errors
+        }
       })
       .catch((err: unknown) => {
+        if (canceled) return;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        // Ignore errors caused by React StrictMode unmount / destroy race condition
+        if (errMsg.includes('root-0') || errMsg.includes('destroyed')) {
+          return;
+        }
         setFeedback({
           type: 'error',
-          message: `Lỗi tải sơ đồ BPMN: ${err instanceof Error ? err.message : String(err)}`,
+          message: `Lỗi tải sơ đồ BPMN: ${errMsg}`,
         });
       });
 
     // Listen to selection events
     modeler.on('selection.changed', (e: { newSelection?: DiagramElement[] }) => {
+      if (canceled) return;
       const element = e.newSelection?.[0];
       setSelectedElement(element || null);
       if (!element || !element.businessObject) return;
@@ -195,8 +212,16 @@ export function WebBpmnModeler({
     });
 
     return () => {
-      modeler.destroy();
+      canceled = true;
+      try {
+        modeler.destroy();
+      } catch {
+        // ignore destroy error
+      }
       modelerRef.current = null;
+      if (canvasRef.current) {
+        canvasRef.current.innerHTML = '';
+      }
     };
   }, [initialXml]);
 
