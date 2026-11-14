@@ -207,6 +207,15 @@ export class CommentService {
     if (!request) {
       throw new NotFoundException('Request not found');
     }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === 'admin') {
+      return;
+    }
+
     const allowed = await this.prisma.formResponse.findFirst({
       where: {
         id: requestId,
@@ -218,6 +227,9 @@ export class CommentService {
               flow: { steps: { some: { assignees: { some: { userId } } } } },
             },
           },
+          { actualActors: { some: { userId } } },
+          { projectedTasks: { some: { assigneeId: userId } } },
+          { signatureFields: { some: { assigneeId: userId } } },
         ],
       },
       select: { id: true },
