@@ -1211,7 +1211,11 @@ export class RequestService {
             },
           },
         },
-        formVersion: true,
+        formVersion: {
+          include: {
+            form: true,
+          },
+        },
       },
     });
 
@@ -1267,6 +1271,9 @@ export class RequestService {
     return {
       id: response.id,
       status: response.status,
+      formId: response.formVersion.formId,
+      formName: response.formVersion.form?.name || '',
+      formVersionId: response.formVersion.id,
       procedure: {
         id: procedureVersion.procedure.id,
         code: procedureVersion.procedure.code,
@@ -1280,6 +1287,7 @@ export class RequestService {
       },
       formVersion: {
         id: response.formVersion.id,
+        formId: response.formVersion.formId,
         version: response.formVersion.version,
         layoutSchema: response.formVersion.layoutSchema,
       },

@@ -62,3 +62,4 @@ Lỗi này thường xảy ra khi:
 2. Hoặc phòng ban của bạn hiện tại chưa được bổ nhiệm vị trí Trưởng phòng (`role = 'manager'`).
 
 **Cách xử lý:** Bạn chỉ cần thông báo cho **Bộ phận Quản trị / Nhân sự (HR)** để cập nhật phòng ban và chức danh của bạn trên cây tổ chức. Sau đó bạn có thể nộp lại hồ sơ bình thường.
+

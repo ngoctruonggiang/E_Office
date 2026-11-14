@@ -103,3 +103,4 @@ Khi bạn bấm nút **[Xử lý]** vào một hồ sơ cụ thể, hệ thống
 
 * **Chống chối bỏ (Non-repudiation):** Mỗi chữ ký số điện tử trên hệ thống Gafood E-Office đều gắn liền với tài khoản đăng nhập định danh duy nhất của cá nhân người duyệt, địa chỉ mạng IP và dấu vết thời gian chuẩn xác đến từng giây.
 * **Bảo vệ toàn vẹn văn bản:** Tệp PDF sau khi được các cấp ký duyệt hoàn tất sẽ được khóa chỉnh sửa, đảm bảo không một ai có thể sửa đổi nội dung văn bản sau khi các sếp đã đặt bút ký.
+

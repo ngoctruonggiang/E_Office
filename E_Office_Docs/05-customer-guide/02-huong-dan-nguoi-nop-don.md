@@ -101,3 +101,4 @@ Bạn có thể theo dõi tiến độ của tất cả các hồ sơ đã nộp
   - Bạn chỉ cần bấm vào nút **"Chỉnh sửa hồ sơ"**, cập nhật lại thông tin theo yêu cầu và bấm **"Gửi lại"**. Hồ sơ sẽ tiếp tục luồng duyệt mà không phải nộp mới từ đầu.
 * ⚪ **Rút hồ sơ / Hủy yêu cầu (CANCELLED):** Nếu bạn không còn nhu cầu nộp đơn, bạn có thể bấm **"Hủy hồ sơ"** khi đơn chưa được duyệt xong.
 * 📋 **Nhân bản từ hồ sơ cũ (CLONE):** Nếu bạn cần làm một đề xuất tương tự như tháng trước, chỉ cần mở hồ sơ cũ ra và bấm **"Nhân bản"**. Toàn bộ biểu mẫu sẽ được điền sẵn, bạn chỉ việc chỉnh sửa ngày tháng và số liệu mới rồi gửi đi.
+

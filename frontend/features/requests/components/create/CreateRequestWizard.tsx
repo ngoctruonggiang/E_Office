@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FormRenderer } from "@/features/forms/components/FormRenderer";
-import { useFormDefinition } from "@/features/forms/hooks/useFormDefinition";
+import { useFormDefinition, useFormVersion } from "@/features/forms/hooks/useFormDefinition";
 import type { FormValues } from "@/features/forms/types/form";
 import {
   uploadDocument,
@@ -84,6 +84,7 @@ export function CreateRequestWizard() {
 
   // Common Form & Upload state
   const [formId, setFormId] = useState<string | null>(null);
+  const [formVersionId, setFormVersionId] = useState<string | null>(null);
   const [values, setValues] = useState<FormValues | null>(null);
   const [mainFiles, setMainFiles] = useState<File[]>([]);
   const [secondaryFiles, setSecondaryFiles] = useState<File[]>([]);
@@ -98,7 +99,9 @@ export function CreateRequestWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [simulating, setSimulating] = useState(false);
 
-  const { form, loading: formLoading } = useFormDefinition(formId ?? "");
+  const pinned = useFormVersion(formVersionId ?? "");
+  const latest = useFormDefinition(formVersionId ? "" : (formId ?? ""));
+  const { form, loading: formLoading } = formVersionId ? pinned : latest;
 
   // Auto-init procedure if passed via query param ?procedureId=...
   useEffect(() => {
@@ -111,7 +114,10 @@ export function CreateRequestWizard() {
           setProcedureId(qProcId);
           setProcedureName(created.procedure?.name || "Quy trình thủ tục");
           setProcedureCode(created.procedure?.code || "");
-          setFormId(created.formId);
+          const targetVersionId = created.formVersionId || created.formVersion?.id || null;
+          const targetFormId = created.formId || created.formVersion?.formId || null;
+          setFormVersionId(targetVersionId);
+          setFormId(targetFormId);
           setActors(created.actualActors || []);
           setStepIdx(1);
           // Load flow status
@@ -157,7 +163,10 @@ export function CreateRequestWizard() {
       setProcedureId(proc.id);
       setProcedureName(proc.name);
       setProcedureCode(proc.code);
-      setFormId(created.formId);
+      const targetVersionId = created.formVersionId || created.formVersion?.id || null;
+      const targetFormId = created.formId || created.formVersion?.formId || null;
+      setFormVersionId(targetVersionId);
+      setFormId(targetFormId);
       setActors(created.actualActors || []);
       setStepIdx(1);
 
@@ -179,6 +188,7 @@ export function CreateRequestWizard() {
   const handleSelectLegacyForm = (id: string) => {
     setMode("legacy");
     setFormId(id);
+    setFormVersionId(null);
     setProcedureRequest(null);
     setValues(null);
     setStepIdx(1);

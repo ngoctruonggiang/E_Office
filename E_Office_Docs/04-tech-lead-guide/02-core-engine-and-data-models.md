@@ -191,3 +191,4 @@ stateDiagram-v2
 * Khi cấp trên yêu cầu bổ sung chứng từ, Process Instance hiện tại trên Operaton được hủy an toàn.
 * Hồ sơ quay về trạng thái `REQUEST_CHANGES`. Người trình được mở lại quyền sửa các ô dữ liệu biểu mẫu.
 * Khi người trình nộp lại, Backend khởi tạo một Process Instance mới trên Operaton với các tham số cập nhật, đảm bảo đồ thị tiến trình luôn sạch sẽ, không sinh rác token chạy ngầm.
+

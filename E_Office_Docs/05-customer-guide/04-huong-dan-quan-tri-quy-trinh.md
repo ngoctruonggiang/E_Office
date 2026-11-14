@@ -112,3 +112,4 @@ e-Office tích hợp sẵn công cụ vẽ quy trình chuẩn quốc tế BPMN 2
 1. Bấm nút **"Thẩm định"** ở góc trên bên phải: Hệ thống sẽ tự động chạy 9 quy tắc kiểm tra (đã map đủ biến chưa, các bước duyệt có người phụ trách chưa...).
 2. Nếu thẩm định báo thành công (màu xanh), bấm nút **"Xuất bản (Publish)"**.
 3. Thủ tục sẽ chính thức xuất hiện trên danh mục toàn công ty để mọi nhân viên có thể sử dụng. Phiên bản này sẽ được ghim an toàn vĩnh viễn.
+

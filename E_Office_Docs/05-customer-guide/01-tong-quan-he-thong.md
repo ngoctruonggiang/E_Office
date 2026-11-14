@@ -74,3 +74,4 @@ Khi đăng nhập thành công vào hệ thống, giao diện làm việc chuẩ
 * **[+ Tạo mới]:** Nút tắt tiện lợi giúp bạn bấm tạo nhanh một tờ trình mới mà không cần chuyển trang.
 * **🔔 Chuông thông báo:** Báo cáo thời gian thực mỗi khi có hồ sơ mới cần bạn duyệt, hoặc khi hồ sơ của bạn vừa được cấp trên phê duyệt/trả về.
 * **Avatar & Tên người dùng:** Nơi xem thông tin cá nhân, cập nhật Chữ ký hình ảnh cá nhân và nút Đăng xuất an toàn.
+

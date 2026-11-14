@@ -97,3 +97,4 @@ GAFOOD E-OFFICE
 > [!TIP]
 > **Tài liệu tham khảo chuyên sâu:**
 > Khi cần đào sâu vào chi tiết các quyết định kiến trúc trước đây, Trưởng phòng Dev có thể tham khảo thêm thư mục [00-overview/adr/](../00-overview/adr/) chứa 6 văn bản ADR (`ADR-001` đến `ADR-006`) ghi lại toàn bộ bối cảnh, các phương án cân nhắc và lý do lựa chọn giải pháp hiện tại.
+

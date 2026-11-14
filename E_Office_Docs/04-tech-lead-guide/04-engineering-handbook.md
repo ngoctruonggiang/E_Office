@@ -91,3 +91,4 @@ Trước khi bấm nút Merge bất kỳ Pull Request nào vào nhánh `main`, T
 - [ ] **4. Xử lý Lỗi & Font tiếng Việt:** Các thông báo lỗi trả về có rõ ràng, bằng tiếng Việt và không để lộ chuỗi SQL / Stack trace nhạy cảm không? Dữ liệu chữ tiếng Việt có được bảo toàn nguyên vẹn UTF-8 không?
 - [ ] **5. Kiểm thử Đơn vị & Tích hợp:** Đã có test case tự động kiểm tra cho logic nghiệp vụ mới chưa?
 - [ ] **6. Build Check 0 Lỗi:** Cả `backend` (`nest build`) và `frontend` (`next build` Turbopack) có biên dịch sạch 100% không cảnh báo không?
+

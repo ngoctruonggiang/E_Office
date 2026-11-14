@@ -51,3 +51,4 @@ flowchart TD
 * **Thủ tục (Procedure):** Quy định chính thức của công ty kết hợp giữa một Biểu mẫu cụ thể, Quy trình tương ứng và quy định ai là người có thẩm quyền ký duyệt.
 * **Hồ sơ / Yêu cầu (Request):** Một tờ trình cụ thể do một nhân sự nộp lên hệ thống vào một ngày giờ nhất định.
 * **Ký số điện tử (Digital Signing):** Thao tác đóng dấu chữ ký hình ảnh của bạn trực tiếp lên văn bản điện tử (PDF) ngay trên trình duyệt mà không cần in ra giấy.
+

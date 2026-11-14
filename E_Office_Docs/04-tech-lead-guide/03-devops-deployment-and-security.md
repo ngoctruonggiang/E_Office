@@ -124,3 +124,4 @@ Trong trường hợp toàn bộ máy chủ bị hỏng:
 2. Chạy `docker compose up -d` để khởi động lại các container.
 3. Chạy `pg_restore` để nạp lại dữ liệu từ 3 bản dump.
 4. Mọi hồ sơ đang ở trạng thái `IN_PROGRESS` sẽ tiếp tục khớp với `ProcessInstanceId` trên Operaton mà không bị mất dấu hay mất bước duyệt.
+

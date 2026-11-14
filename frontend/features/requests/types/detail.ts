@@ -101,6 +101,12 @@ export type RequestDetail = RequestSummary & {
   actualActors?: RequestActualActorItem[];
   projectedTasks?: any[];
   signatureFields?: any[];
+  formVersion?: {
+    id: string;
+    formId?: string;
+    version?: number;
+    layoutSchema?: any;
+  };
 };
 
 export type StepState =

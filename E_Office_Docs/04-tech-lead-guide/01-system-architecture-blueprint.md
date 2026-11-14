@@ -226,3 +226,4 @@ sequenceDiagram
    - Khi Operaton phục hồi, cơ chế `OperatonSyncService` có thể quét và tái đồng bộ các task bị trễ.
 3. **Mở rộng Đa chi nhánh / Đa cụm (Multi-Tenant & Clustering):**
    - Mọi quy trình thuộc e-Office đều được gắn cờ `category="e-Office"`, cho phép dùng chung một cụm Operaton Engine với các phòng ban khác (như CRM, HRM, Kho vận) mà không lo bị trùng lặp hoặc nhìn thấy quy trình của nhau.
+
