@@ -1773,26 +1773,59 @@ export class RequestService {
    * Fast query for "My Duties" from TaskProjection (REQ-RUN-04).
    */
   async getMyDuties(userId: string, query: DutyQueryDto) {
-    const statusFilter = query.tab === 'completed' ? 'COMPLETED' : 'ACTIVE';
+    const isCompleted =
+      query.dutyStatus === 'DONE' || query.tab === 'completed';
+    const isPending =
+      query.dutyStatus === 'PENDING' || query.tab === 'pending';
+    const statusFilter = isCompleted
+      ? 'COMPLETED'
+      : isPending
+      ? 'ACTIVE'
+      : undefined;
+
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
 
     const where: Prisma.TaskProjectionWhereInput = {
       assigneeId: userId,
-      status: statusFilter,
+      ...(statusFilter ? { status: statusFilter } : {}),
     };
 
     if (query.procedureId) {
       where.response = {
+        ...(where.response as Prisma.FormResponseWhereInput || {}),
         procedureVersion: {
           procedureId: query.procedureId,
         },
       };
     }
 
-    if (query.search) {
-      const q = query.search.trim();
+    if (query.formId) {
+      where.response = {
+        ...(where.response as Prisma.FormResponseWhereInput || {}),
+        formVersion: {
+          formId: query.formId,
+        },
+      };
+    }
+
+    if (query.status) {
+      where.response = {
+        ...(where.response as Prisma.FormResponseWhereInput || {}),
+        status: query.status,
+      };
+    }
+
+    if (query.createdById) {
+      where.response = {
+        ...(where.response as Prisma.FormResponseWhereInput || {}),
+        createdById: query.createdById,
+      };
+    }
+
+    const q = (query.search || query.q)?.trim();
+    if (q) {
       where.OR = [
         { taskName: { contains: q, mode: 'insensitive' } },
         {
@@ -1814,13 +1847,28 @@ export class RequestService {
       ];
     }
 
+    // Determine sorting
+    const dir: Prisma.SortOrder = query.sortDir === 'asc' ? 'asc' : 'desc';
+    let orderBy: Prisma.TaskProjectionOrderByWithRelationInput = { createdAt: dir };
+    if (query.sortBy === 'dutyActed') {
+      orderBy = { completedAt: dir };
+    } else if (query.sortBy === 'requestCreated') {
+      orderBy = { response: { createdAt: dir } };
+    } else if (query.sortBy === 'requestStatus') {
+      orderBy = { response: { status: dir } };
+    } else if (query.sortBy === 'formName') {
+      orderBy = { taskName: dir };
+    } else {
+      orderBy = { createdAt: dir };
+    }
+
     const [total, tasks] = await Promise.all([
       this.prisma.taskProjection.count({ where }),
       this.prisma.taskProjection.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           response: {
             include: {
@@ -1836,6 +1884,18 @@ export class RequestService {
         },
       }),
     ]);
+
+    if (total === 0) {
+      const legacyCount = await this.prisma.task.count({
+        where: {
+          assigneeId: userId,
+          ...(query.dutyStatus ? { status: query.dutyStatus as TaskStatus } : {}),
+        },
+      });
+      if (legacyCount > 0) {
+        return this.getByDuty(userId, query as any);
+      }
+    }
 
     const items = tasks.map((t) => ({
       // flattened fields for RequestSummary compatibility:
