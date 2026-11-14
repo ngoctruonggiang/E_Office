@@ -55,7 +55,15 @@ export function TableConfigEditor({
     const isDefaultKey = !col.key || col.key.startsWith("col_") || col.key === oldSlug;
 
     if (isDefaultKey && newLabel.trim()) {
-      const autoKey = slugifyVietnamese(newLabel) || `col_${idx + 1}`;
+      const rawKey = slugifyVietnamese(newLabel) || `col_${idx + 1}`;
+      const otherColKeys = new Set(
+        cfg.columns.filter((_, i) => i !== idx).map((c) => c.key),
+      );
+      let autoKey = rawKey;
+      let suffix = 2;
+      while (otherColKeys.has(autoKey)) {
+        autoKey = `${rawKey}_${suffix++}`;
+      }
       updateColumn(idx, { label: newLabel, key: autoKey });
     } else {
       updateColumn(idx, { label: newLabel });

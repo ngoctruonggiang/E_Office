@@ -17,3 +17,4 @@ export function slugifyVietnamese(text: string): string {
     .replace(/^_+|_+$/g, "")
     .slice(0, 40);
 }
+

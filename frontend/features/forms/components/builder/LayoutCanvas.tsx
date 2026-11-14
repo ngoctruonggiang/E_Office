@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -68,6 +69,7 @@ export function LayoutCanvas({
   onDeleteItem: (sectionId: string, rowId: string, itemId: string) => void;
 }) {
   const t = useT();
+  const [previewValues, setPreviewValues] = useState<Record<string, unknown>>({});
 
   if (mode === "preview") {
     if (fields.length === 0) {
@@ -93,14 +95,16 @@ export function LayoutCanvas({
       <div className="space-y-3">
         <div className="flex items-center gap-2 rounded-md border border-info-border bg-info-subtle px-3 py-2 text-xs text-info">
           <Eye size={14} className="shrink-0" />
-          <span>{t("formBuilder.previewTab")}</span>
+          <span>{t("formBuilder.previewTab")} · Bạn có thể nhập thử dữ liệu vào các ô bên dưới</span>
         </div>
         <FormRenderer
-          key={JSON.stringify(previewForm)}
+          key="builder-preview-renderer"
           form={previewForm}
+          initialValues={previewValues}
+          onChange={setPreviewValues}
           submitLabel={t("common.submit")}
-          onSubmit={() => {
-            /* interactive preview only */
+          onSubmit={(_vals, raw) => {
+            setPreviewValues(raw);
           }}
         />
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { ChevronDown, ChevronRight, Paperclip } from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -64,6 +64,7 @@ export type FormRendererProps = {
   ) => void | Promise<void>;
   submitLabel?: string;
   disabled?: boolean;
+  onChange?: (values: FormValues) => void;
 };
 
 /**
@@ -78,6 +79,7 @@ export function FormRenderer({
   onSubmit,
   submitLabel = "Submit",
   disabled,
+  onChange,
 }: FormRendererProps) {
   const [values, setValues] = useState<FormValues>(() =>
     buildInitialValues(form, initialValues),
@@ -87,6 +89,13 @@ export function FormRenderer({
     Record<string, TableCellErrors>
   >({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setValues((prev) => {
+      const defaults = buildInitialValues(form, initialValues);
+      return { ...defaults, ...prev };
+    });
+  }, [form.fields, initialValues]);
 
   const normalizedLayout = useMemo(
     () => normalizeLayoutSchema(form.name, form.fields, form.layoutSchema),
@@ -104,7 +113,11 @@ export function FormRenderer({
   );
 
   const setValue = (key: string, value: unknown) => {
-    setValues((prev) => applyTableAggregates(form.fields, { ...prev, [key]: value }));
+    setValues((prev) => {
+      const next = applyTableAggregates(form.fields, { ...prev, [key]: value });
+      onChange?.(next);
+      return next;
+    });
     setErrors((prev) => {
       if (!prev[key]) return prev;
       const next = { ...prev };

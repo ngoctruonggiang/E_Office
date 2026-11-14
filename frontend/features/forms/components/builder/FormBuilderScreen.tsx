@@ -56,6 +56,100 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
+  const draftStorageKey = `eoffice_builder_draft_${formId || "new"}`;
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+
+  // Restore draft on mount for newly created forms
+  useEffect(() => {
+    if (formId) return;
+    try {
+      const raw = localStorage.getItem(draftStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (
+          parsed &&
+          (parsed.name ||
+            (Array.isArray(parsed.fields) && parsed.fields.length > 0))
+        ) {
+          if (parsed.name) setName(parsed.name);
+          if (parsed.fields && Array.isArray(parsed.fields))
+            setFields(parsed.fields);
+          if (parsed.sections && Array.isArray(parsed.sections))
+            setSections(parsed.sections);
+          setDraftRestored(true);
+          if (parsed.savedAt) {
+            setLastSavedTime(
+              new Date(parsed.savedAt).toLocaleTimeString("vi-VN"),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load local draft:", e);
+    }
+  }, [formId, draftStorageKey]);
+
+  // Continuous auto-save draft to localStorage (debounce 400ms)
+  useEffect(() => {
+    if (!name.trim() && fields.length === 0) return;
+    const timer = setTimeout(() => {
+      try {
+        const snapshot = {
+          name,
+          fields,
+          sections,
+          savedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(draftStorageKey, JSON.stringify(snapshot));
+        setLastSavedTime(new Date().toLocaleTimeString("vi-VN"));
+      } catch (e) {
+        console.warn("Could not save local draft:", e);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [name, fields, sections, draftStorageKey]);
+
+  // Warn before browser unload/refresh if there is unsaved content
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (name.trim() || fields.length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [name, fields]);
+
+  const clearDraft = () => {
+    if (confirm("Bạn có chắc chắn muốn xóa bản nháp và bắt đầu lại từ đầu?")) {
+      try {
+        localStorage.removeItem(draftStorageKey);
+      } catch {}
+      setName("");
+      setFields([]);
+      setSections([newSection("Thông tin chung")]);
+      setSelection(null);
+      setDraftRestored(false);
+      setLastSavedTime(null);
+      notify({ title: "Đã làm mới biểu mẫu", kind: "info" });
+    }
+  };
+
+  const handleCancel = () => {
+    if (name.trim() || fields.length > 0) {
+      if (
+        !confirm(
+          "Bản nháp của bạn đã được tự động lưu trên máy này. Bạn có chắc muốn rời đi không?",
+        )
+      ) {
+        return;
+      }
+    }
+    router.push("/forms");
+  };
+
   useEffect(() => {
     if (!formId) return;
     let active = true;
@@ -118,7 +212,6 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
     setFields((fs) => [...fs, field]);
     setSections(nextSecs);
     setSelection({ kind: "item", sectionId, rowId, itemId: item.id });
-    setCanvasMode("design");
   };
 
   const addBlock = (kind: LayoutBlockKind) => {
@@ -135,7 +228,6 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
     );
     setSections(nextSecs);
     setSelection({ kind: "item", sectionId, rowId, itemId: item.id });
-    setCanvasMode("design");
   };
 
   const addSection = () => {
@@ -349,35 +441,69 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
     );
   };
 
-  const validate = (): string | null => {
-    if (!name.trim()) return t("formBuilder.errors.nameRequired");
-    if (fields.length === 0) return t("formBuilder.errors.fieldsRequired");
+  const validate = (): { error: string; fieldKey?: string } | null => {
+    if (!name.trim()) return { error: t("formBuilder.errors.nameRequired") };
+    if (fields.length === 0)
+      return { error: t("formBuilder.errors.fieldsRequired") };
     const keys = new Set<string>();
     for (const f of fields) {
-      if (!f.key.trim()) return t("formBuilder.errors.keyRequired");
-      if (!f.label.trim()) return t("formBuilder.errors.labelRequired");
-      if (keys.has(f.key)) return t("formBuilder.errors.duplicateKey");
+      if (!f.key.trim())
+        return { error: t("formBuilder.errors.keyRequired"), fieldKey: f.key };
+      if (!f.label.trim())
+        return {
+          error: `Trường "${f.key}" chưa có nhãn hiển thị. Vui lòng đặt nhãn trước khi lưu.`,
+          fieldKey: f.key,
+        };
+      if (keys.has(f.key))
+        return {
+          error: `Mã trường "${f.key}" bị trùng nhau. Vui lòng đổi mã khác.`,
+          fieldKey: f.key,
+        };
       keys.add(f.key);
       if (
         f.type === "SELECT" &&
         f.options.filter((o) => o.value.trim()).length === 0
       ) {
-        return t("formBuilder.errors.optionsRequired");
+        return {
+          error: `Trường lựa chọn "${f.label || f.key}" cần ít nhất một tùy chọn.`,
+          fieldKey: f.key,
+        };
       }
       if (
         f.type === "TABLE" &&
         (!f.tableConfig || f.tableConfig.columns.length === 0)
       ) {
-        return t("formBuilder.errors.tableColumnsRequired");
+        return {
+          error: `Bảng dữ liệu "${f.label || f.key}" cần ít nhất một cột dữ liệu.`,
+          fieldKey: f.key,
+        };
       }
     }
     return null;
   };
 
   const save = async () => {
-    const error = validate();
-    if (error) {
-      notify({ title: error, kind: "error" });
+    const valResult = validate();
+    if (valResult) {
+      notify({ title: valResult.error, kind: "error" });
+      if (valResult.fieldKey) {
+        for (const sec of sections) {
+          for (const r of sec.rows) {
+            for (const it of r.items) {
+              if (it.kind === "field" && it.fieldKey === valResult.fieldKey) {
+                setSelection({
+                  kind: "item",
+                  sectionId: sec.id,
+                  rowId: r.id,
+                  itemId: it.id,
+                });
+                setCanvasMode("design");
+                return;
+              }
+            }
+          }
+        }
+      }
       return;
     }
     setSaving(true);
@@ -389,12 +515,16 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
       };
       if (isEdit && formId) await updateForm(formId, payload);
       else await createForm(payload);
+      try {
+        localStorage.removeItem(draftStorageKey);
+      } catch {}
       notify({ title: t("forms.saved"), kind: "success" });
       router.push("/forms");
     } catch (err) {
       notify({
         title: t("forms.saveFailed"),
-        message: err instanceof ApiError || err instanceof Error ? err.message : "",
+        message:
+          err instanceof ApiError || err instanceof Error ? err.message : "",
         kind: "error",
       });
       setSaving(false);
@@ -406,11 +536,18 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
   return (
     <div className="space-y-5">
       <PageHeader
-        backHref="/forms"
+        onBack={handleCancel}
         backLabel={t("common.back")}
         title={isEdit ? t("forms.editForm") : t("forms.newForm")}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {lastSavedTime && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-secondary/70 px-2.5 py-1 text-[11px] text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                Đã lưu nháp ({lastSavedTime})
+              </span>
+            )}
+
             <div className="inline-flex rounded-md border border-border bg-surface-secondary p-0.5 text-xs">
               <button
                 type="button"
@@ -440,7 +577,7 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
               </button>
             </div>
 
-            <Button variant="outline" onClick={() => router.push("/forms")}>
+            <Button variant="outline" onClick={handleCancel}>
               <X size={15} />
               {t("common.cancel")}
             </Button>
@@ -451,6 +588,36 @@ export function FormBuilderScreen({ formId }: { formId?: string }) {
           </div>
         }
       />
+
+      {/* Banner thông báo khôi phục bản nháp tự động */}
+      {draftRestored && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-2.5 text-xs text-foreground shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-primary" />
+            <span>
+              <strong>Đã tự động khôi phục bản nháp biểu mẫu</strong> mà bạn đang nhập dở{" "}
+              {lastSavedTime ? `(lưu lúc ${lastSavedTime})` : ""}.
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setDraftRestored(false)}
+              className="font-semibold text-primary hover:underline cursor-pointer"
+            >
+              Tiếp tục chỉnh sửa
+            </button>
+            <span className="text-muted-foreground">·</span>
+            <button
+              type="button"
+              onClick={clearDraft}
+              className="text-muted-foreground hover:text-danger hover:underline cursor-pointer"
+            >
+              Xóa bản nháp làm lại từ đầu
+            </button>
+          </div>
+        </div>
+      )}
 
       {isEdit && (
         <div className="rounded-md border border-border-subtle bg-surface-secondary/50 px-3.5 py-2 text-xs text-muted-foreground">

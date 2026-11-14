@@ -60,7 +60,16 @@ export function FieldConfigPanel({
               field.key === oldSlug;
 
             if (isDefaultKey && newLabel.trim()) {
-              const autoKey = slugifyVietnamese(newLabel) || field.key;
+              const rawKey = slugifyVietnamese(newLabel) || field.key;
+              const otherKeys = new Set(
+                allFields.filter((f) => f.uid !== field.uid).map((f) => f.key),
+              );
+              let autoKey = rawKey;
+              let suffix = 2;
+              while (otherKeys.has(autoKey)) {
+                autoKey = `${rawKey}_${suffix++}`;
+              }
+
               if (onRenameKey && autoKey !== field.key) {
                 onRenameKey(field.uid, field.key, autoKey);
               }
