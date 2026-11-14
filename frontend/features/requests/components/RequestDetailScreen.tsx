@@ -92,7 +92,13 @@ export function RequestDetailScreen({ id }: { id: string }) {
   const isInFlight =
     detail?.status === "PENDING" || detail?.status === "REQUEST_CHANGES";
   const isAssignee =
-    !!detail && !!user && isApprovalAssignee(detail.flow, user.id);
+    (!!detail && !!user && isApprovalAssignee(detail.flow, user.id)) ||
+    (operatonFlow?.actualActors?.some((a) => a.assignee?.id === user?.id) ?? false) ||
+    (operatonFlow?.activeTasks?.some((t) => t.assignee?.id === user?.id) ?? false) ||
+    (detail?.signatureFields?.some((s: any) => s.assigneeId === user?.id) ?? false) ||
+    (detail?.actualActors?.some((a: any) => a.userId === user?.id || a.assigneeId === user?.id) ?? false) ||
+    (detail?.projectedTasks?.some((t: any) => t.assigneeId === user?.id) ?? false) ||
+    user?.role === "admin";
   const isViewer = !!detail && !!user && detail.viewerIds.includes(user.id);
   const isOpen = isCraftMode || isInFlight;
   const awaitingRevision = detail?.status === "REQUEST_CHANGES" && isOwner;
@@ -101,7 +107,7 @@ export function RequestDetailScreen({ id }: { id: string }) {
   const canAddMain = isOwner && isCraftMode;
   const canRemoveMain = isOwner && isCraftMode;
   const canAddSecondary = isOwner || isAssignee || isViewer;
-  const canRemoveSecondary = isOwner;
+  const canRemoveSecondary = isOwner || isAssignee || user?.role === "admin";
   const canAddViewers =
     (isOwner && isOpen) || (isAssignee && !isOwner && isInFlight);
   const canRemoveViewers = isOwner && isOpen;

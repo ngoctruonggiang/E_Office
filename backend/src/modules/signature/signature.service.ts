@@ -320,7 +320,13 @@ export class SignatureService {
     userId: string,
   ): Promise<void> {
     if (request.createdById === userId) return;
-    const [assignee, viewer] = await Promise.all([
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === 'admin') return;
+
+    const [assignee, viewer, projected, actual, sig] = await Promise.all([
       this.prisma.flowAssignee.findFirst({
         where: {
           userId,
@@ -332,8 +338,20 @@ export class SignatureService {
         where: { responseId: request.id, userId },
         select: { id: true },
       }),
+      this.prisma.taskProjection.findFirst({
+        where: { responseId: request.id, assigneeId: userId },
+        select: { id: true },
+      }),
+      this.prisma.requestActualActor.findFirst({
+        where: { responseId: request.id, userId },
+        select: { id: true },
+      }),
+      this.prisma.signatureField.findFirst({
+        where: { responseId: request.id, assigneeId: userId },
+        select: { id: true },
+      }),
     ]);
-    if (!assignee && !viewer) {
+    if (!assignee && !viewer && !projected && !actual && !sig) {
       throw new ForbiddenException('You cannot view this request');
     }
   }

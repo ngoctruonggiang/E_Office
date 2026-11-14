@@ -108,7 +108,10 @@ export class DocumentService {
   ): Promise<void> {
     const link = await this.prisma.requestDocument.findFirst({
       where: { responseId: requestId, documentId },
-      include: { response: { select: { createdById: true, status: true } } },
+      include: {
+        response: { select: { createdById: true, status: true } },
+        document: { select: { createdById: true } },
+      },
     });
     if (!link) {
       throw new NotFoundException('Document is not attached to this request');
@@ -118,12 +121,23 @@ export class DocumentService {
         'The signing document is managed through the signing flow',
       );
     }
-    if (link.response.createdById !== userId) {
-      throw new ForbiddenException('Only the requestor can remove documents');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    const isAdmin = user?.role === 'admin';
+    const isOwner = link.response.createdById === userId;
+    const isUploader = link.document?.createdById === userId;
+
+    if (!isAdmin && !isOwner && !isUploader) {
+      throw new ForbiddenException(
+        'Only the requestor or the document uploader can remove documents',
+      );
     }
 
     // MAIN documents are locked once submitted — removable only in craft mode
-    // (DRAFT). SECONDARY documents may be removed by the creator at any time.
+    // (DRAFT). SECONDARY documents may be removed by the creator or uploader at any time.
     if (
       link.section === RequestDocSection.MAIN &&
       link.response.status !== RequestStatus.DRAFT
@@ -208,22 +222,43 @@ export class DocumentService {
   // ── helpers ────────────────────────────────────────────────────────────
 
   /**
-   * Whether a user holds a (non-CLOSE) assignment on the request's flow — i.e.
-   * is an approval assignee. Used to let assignees attach documents in-flight.
+   * Whether a user is authorized as an approver / assignee on the request —
+   * supports both Procedure BPMN Runtime (TaskProjection, ActualActor, SignatureField)
+   * and Legacy Flow (FlowAssignee), as well as system admins.
    */
   private async isApprovalAssignee(
     responseId: string,
     userId: string,
   ): Promise<boolean> {
-    const assignee = await this.prisma.flowAssignee.findFirst({
-      where: {
-        userId,
-        type: { not: TaskType.CLOSE },
-        step: { flow: { instances: { some: { responseId } } } },
-      },
-      select: { id: true },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
     });
-    return !!assignee;
+    if (user?.role === 'admin') return true;
+
+    const [projected, actual, sig, legacy] = await Promise.all([
+      this.prisma.taskProjection.findFirst({
+        where: { responseId, assigneeId: userId },
+        select: { id: true },
+      }),
+      this.prisma.requestActualActor.findFirst({
+        where: { responseId, userId },
+        select: { id: true },
+      }),
+      this.prisma.signatureField.findFirst({
+        where: { responseId, assigneeId: userId },
+        select: { id: true },
+      }),
+      this.prisma.flowAssignee.findFirst({
+        where: {
+          userId,
+          type: { not: TaskType.CLOSE },
+          step: { flow: { instances: { some: { responseId } } } },
+        },
+        select: { id: true },
+      }),
+    ]);
+    return !!(projected || actual || sig || legacy);
   }
 
   /** Whether a user is on the request's viewable list. */

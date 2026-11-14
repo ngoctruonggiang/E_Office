@@ -730,23 +730,43 @@ export class RequestService {
   // ── helpers ────────────────────────────────────────────────────────────
 
   /**
-   * Whether a user is an approval assignee on a request's flow — i.e. they hold
-   * an assignment in the flow blueprint (the legacy CLOSE duty, if any, is
-   * excluded). Used to authorize viewer-sharing.
+   * Whether a user is an approval assignee on a request's flow — supports both
+   * Procedure BPMN Runtime (TaskProjection, ActualActor, SignatureField) and
+   * Legacy Flow (FlowAssignee), as well as system admins. Used to authorize viewer-sharing.
    */
   private async isApprovalAssignee(
     responseId: string,
     userId: string,
   ): Promise<boolean> {
-    const assignee = await this.prisma.flowAssignee.findFirst({
-      where: {
-        userId,
-        type: { not: TaskType.CLOSE },
-        step: { flow: { instances: { some: { responseId } } } },
-      },
-      select: { id: true },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
     });
-    return !!assignee;
+    if (user?.role === 'admin') return true;
+
+    const [projected, actual, sig, legacy] = await Promise.all([
+      this.prisma.taskProjection.findFirst({
+        where: { responseId, assigneeId: userId },
+        select: { id: true },
+      }),
+      this.prisma.requestActualActor.findFirst({
+        where: { responseId, userId },
+        select: { id: true },
+      }),
+      this.prisma.signatureField.findFirst({
+        where: { responseId, assigneeId: userId },
+        select: { id: true },
+      }),
+      this.prisma.flowAssignee.findFirst({
+        where: {
+          userId,
+          type: { not: TaskType.CLOSE },
+          step: { flow: { instances: { some: { responseId } } } },
+        },
+        select: { id: true },
+      }),
+    ]);
+    return !!(projected || actual || sig || legacy);
   }
 
   /**
