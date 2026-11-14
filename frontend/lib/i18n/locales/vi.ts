@@ -337,6 +337,7 @@ export const vi = {
       "Định dạng tệp này không hỗ trợ xem trực tiếp. Vui lòng tải xuống để xem.",
     previewEmpty: "Yêu cầu này chưa có tài liệu đính kèm.",
     openSignView: "Mở toàn màn hình",
+    editForm: "Chỉnh sửa hồ sơ",
     revisionNoticeTitle: "Yêu cầu đang chờ chỉnh sửa",
     revisionNoticeDesc:
       "Người duyệt đã yêu cầu cập nhật nội dung. Chọn \"Chỉnh sửa lại\" để tạo bản sửa mới.",

@@ -17,7 +17,7 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { formatBytes } from "@/lib/utils/format";
 
-function DocumentRow({
+export function DocumentRow({
   id,
   canRemove,
   onRemove,

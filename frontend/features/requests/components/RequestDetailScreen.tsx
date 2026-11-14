@@ -362,10 +362,7 @@ export function RequestDetailScreen({ id }: { id: string }) {
               onActed={reload}
               canEditForm={canEditForm}
               isEditingForm={editingForm}
-              onEditForm={() => {
-                setRightTab("overview");
-                setEditingForm(true);
-              }}
+              onEditForm={() => router.push(`/requests/${detail.id}/edit`)}
               canShare={canAddViewers}
               onShare={shareViewers}
               canConfirmDraft={canConfirmDraft}
@@ -379,32 +376,17 @@ export function RequestDetailScreen({ id }: { id: string }) {
         <InlineNotice
           kind="warning"
           title={t("detail.revisionNoticeTitle")}
-          description="Người duyệt đã yêu cầu cập nhật lại nội dung. Bạn có thể chỉnh sửa biểu mẫu hoặc bổ sung tài liệu đính kèm, sau đó bấm 'Nộp lại hồ sơ'."
+          description="Người duyệt đã yêu cầu cập nhật lại nội dung. Bạn có thể mở trang chỉnh sửa biểu mẫu hoặc tài liệu đính kèm, sau đó bấm 'Nộp lại hồ sơ'."
           action={
-            <div className="flex items-center gap-2">
-              {!editingForm ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setRightTab("overview");
-                    setEditingForm(true);
-                  }}
-                  className="bg-white/80 dark:bg-slate-900/80 shadow-sm"
-                >
-                  <Pencil size={13} className="mr-1.5" />
-                  {t("detail.editForm")}
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditingForm(false)}
-                >
-                  Đóng chế độ sửa
-                </Button>
-              )}
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push(`/requests/${detail.id}/edit`)}
+              className="bg-white/80 dark:bg-slate-900/80 shadow-sm"
+            >
+              <Pencil size={13} className="mr-1.5" />
+              {t("detail.editForm")}
+            </Button>
           }
         />
       )}
@@ -510,11 +492,11 @@ export function RequestDetailScreen({ id }: { id: string }) {
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {t("detail.formData")}
                   </h2>
-                  {canEditForm && !editingForm && (
+                  {canEditForm && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setEditingForm(true)}
+                      onClick={() => router.push(`/requests/${detail.id}/edit`)}
                       className="h-7 text-xs"
                     >
                       <Pencil size={12} className="mr-1" />

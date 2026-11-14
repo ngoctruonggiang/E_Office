@@ -336,6 +336,7 @@ export const en: Dictionary = {
       "Inline preview is not available for this file type. Download the file to view it.",
     previewEmpty: "This request has no attached documents yet.",
     openSignView: "Full view",
+    editForm: "Edit Request",
     revisionNoticeTitle: "Changes requested",
     revisionNoticeDesc:
       "An approver asked for revisions. Use \"Revise\" to submit an updated copy.",
