@@ -200,12 +200,16 @@ export function EditRequestScreen({ id }: { id: string }) {
             const saved = await handleSave(true);
             if (!saved) return;
 
+            const raw = currentRaw ?? valueMap;
+
             if (detail.status === "REQUEST_CHANGES") {
               await resubmitProcedureRequest(id, {
+                values: raw,
                 comment: "Đã hoàn tất chỉnh sửa và nộp lại hồ sơ",
               });
             } else if (detail.procedureVersionId) {
               await resubmitProcedureRequest(id, {
+                values: raw,
                 comment: "Đã nộp hồ sơ yêu cầu phê duyệt",
               });
             } else {
