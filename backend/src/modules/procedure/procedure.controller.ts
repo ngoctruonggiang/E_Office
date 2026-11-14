@@ -29,6 +29,7 @@ import { ListProceduresQueryDto } from './dto/list-procedures-query.dto';
 import { UpdateProcedureVersionDto } from './dto/update-procedure-version.dto';
 import { UpdateProcedureDto } from './dto/update-procedure.dto';
 import { ProcedureService } from './procedure.service';
+import { ActorResolverService } from './actor-resolver.service';
 import {
   UserDirectoryItem,
   ValidationResult,
@@ -39,9 +40,20 @@ import {
 @Controller('procedures')
 @UseGuards(RolesGuard)
 export class ProcedureController {
-  constructor(private readonly procedureService: ProcedureService) {}
+  constructor(
+    private readonly procedureService: ProcedureService,
+    private readonly actorResolverService: ActorResolverService,
+  ) {}
 
   // ── Helper Endpoints (placed before :id to prevent route clash) ──
+
+  @Get('helpers/org-titles')
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Get departments and job titles for dynamic actor configuration' })
+  @ApiOkResponse({ description: 'List of departments and titles' })
+  async getOrgTitles() {
+    return this.procedureService.getOrgTitles();
+  }
 
   @Get('helpers/directory')
   @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
@@ -102,6 +114,34 @@ export class ProcedureController {
     @Param('versionId') versionId: string,
   ): Promise<ValidationResult> {
     return this.procedureService.validateVersion(versionId);
+  }
+
+  @Post('versions/:versionId/resolve-actors')
+  @HttpCode(HttpStatus.OK)
+  @Roles('admin', 'ADMIN', 'super_admin', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Test resolve dynamic actors for a procedure version' })
+  @ApiParam({ name: 'versionId', description: 'ProcedureVersion UUID' })
+  @ApiOkResponse({ description: 'Resolved actors per task' })
+  async resolveActors(
+    @Param('versionId') versionId: string,
+    @Body() body: { requestorId?: string },
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ) {
+    const reqId = body?.requestorId || currentUser.userId;
+    const resolvedActors = await this.actorResolverService.resolveActorsForProcedure(versionId, reqId);
+    return {
+      procedureVersionId: versionId,
+      requestorId: reqId,
+      resolvedActors: resolvedActors.map((r) => ({
+        taskDefinitionKey: r.taskDefinitionKey,
+        taskName: r.taskName,
+        assigneeType: r.assigneeType,
+        userId: r.user?.id || null,
+        userName: r.user?.displayName || r.user?.email || undefined,
+        resolutionOrigin: r.resolutionOrigin || 'Chỉ định trực tiếp',
+        fallbackApplied: r.isFallback,
+      })),
+    };
   }
 
   @Post('versions/:versionId/publish')

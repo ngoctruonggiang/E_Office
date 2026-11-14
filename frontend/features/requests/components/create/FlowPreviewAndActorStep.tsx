@@ -145,6 +145,11 @@ export function FlowPreviewAndActorStep({
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {actor.title || actor.department || 'Thành viên'}
                         </p>
+                        {actor.resolutionOrigin && (
+                          <p className="text-[11px] text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1 mt-0.5">
+                            <span>✨ {actor.resolutionOrigin}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 

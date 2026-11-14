@@ -31,6 +31,7 @@ import { validateRequestValues } from '../form-builder/validators/form-value.val
 import { OperatonClientService } from '../operaton/operaton-client.service';
 import { BpmnParserService } from '../operaton/bpmn-parser.service';
 import { FlowSimulationService, FlowSimulationResult } from './flow-simulation.service';
+import { ActorResolverService } from '../procedure/actor-resolver.service';
 import { CreateRequestFromProcedureDto } from './dto/create-request-from-procedure.dto';
 import { ActualActorItemDto } from './dto/update-actual-actors.dto';
 import { DutyQueryDto } from './dto/duty-query.dto';
@@ -83,6 +84,7 @@ export class RequestService {
     private readonly operatonClient: OperatonClientService,
     private readonly bpmnParser: BpmnParserService,
     private readonly flowSimulation: FlowSimulationService,
+    private readonly actorResolver: ActorResolverService,
   ) { }
 
   /**
@@ -1213,19 +1215,26 @@ export class RequestService {
       },
     });
 
-    // Seed default actors into RequestActualActor
+    // Seed default actors into RequestActualActor (resolving dynamic rules or direct users)
+    const resolvedOrigins = new Map<string, string>();
+    const mappingMap = new Map<string, any>(
+      procedureVersion.actorMappings.map((m: any) => [m.taskDefinitionKey, m]),
+    );
+
     for (const mapping of procedureVersion.actorMappings) {
-      if (mapping.defaultUserId) {
+      const resolved = await this.actorResolver.resolveActor(mapping, userId);
+      if (resolved?.user) {
+        resolvedOrigins.set(mapping.taskDefinitionKey, resolved.resolutionOrigin || '');
         await this.prisma.requestActualActor.create({
           data: {
             responseId: response.id,
             taskDefinitionKey: mapping.taskDefinitionKey,
             taskName: mapping.taskName,
-            userId: mapping.defaultUserId,
+            userId: resolved.user.id,
             isOverridden: false,
             order: mapping.order,
-            department: mapping.defaultUser?.department || null,
-            title: mapping.defaultUser?.title || null,
+            department: resolved.user.department || null,
+            title: resolved.user.title || null,
           },
         });
       }
@@ -1235,6 +1244,24 @@ export class RequestService {
       where: { responseId: response.id },
       include: { user: true },
       orderBy: { order: 'asc' },
+    });
+
+    const mappedActors = actualActors.map((a) => {
+      const mapping = mappingMap.get(a.taskDefinitionKey);
+      return {
+        id: a.id,
+        taskDefinitionKey: a.taskDefinitionKey,
+        taskName: a.taskName,
+        userId: a.userId,
+        userName: a.user.displayName || a.user.email,
+        fullName: a.user.displayName || a.user.email,
+        department: a.department,
+        title: a.title,
+        order: a.order,
+        isOverridden: a.isOverridden,
+        allowOverride: mapping?.allowOverride !== false,
+        resolutionOrigin: resolvedOrigins.get(a.taskDefinitionKey) || undefined,
+      };
     });
 
     return {
@@ -1256,17 +1283,8 @@ export class RequestService {
         version: response.formVersion.version,
         layoutSchema: response.formVersion.layoutSchema,
       },
-      defaultActors: actualActors.map((a) => ({
-        id: a.id,
-        taskDefinitionKey: a.taskDefinitionKey,
-        taskName: a.taskName,
-        userId: a.userId,
-        fullName: a.user.displayName || a.user.email,
-        department: a.department,
-        title: a.title,
-        order: a.order,
-        isOverridden: a.isOverridden,
-      })),
+      actualActors: mappedActors,
+      defaultActors: mappedActors,
       createdAt: response.createdAt,
     };
   }
@@ -2330,19 +2348,22 @@ export class RequestService {
             title: sourceActor.title,
           },
         });
-      } else if (mapping.defaultUserId) {
-        await this.prisma.requestActualActor.create({
-          data: {
-            responseId: newRequest.id,
-            taskDefinitionKey: mapping.taskDefinitionKey,
-            taskName: mapping.taskName,
-            userId: mapping.defaultUserId,
-            isOverridden: false,
-            order: mapping.order,
-            department: mapping.defaultUser?.department || null,
-            title: mapping.defaultUser?.title || null,
-          },
-        });
+      } else {
+        const resolved = await this.actorResolver.resolveActor(mapping, userId);
+        if (resolved?.user) {
+          await this.prisma.requestActualActor.create({
+            data: {
+              responseId: newRequest.id,
+              taskDefinitionKey: mapping.taskDefinitionKey,
+              taskName: mapping.taskName,
+              userId: resolved.user.id,
+              isOverridden: false,
+              order: mapping.order,
+              department: resolved.user.department || null,
+              title: resolved.user.title || null,
+            },
+          });
+        }
       }
     }
 

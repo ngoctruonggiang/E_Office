@@ -33,6 +33,7 @@ export interface RequestActualActorItem {
   isOverridden: boolean;
   order: number;
   allowOverride?: boolean;
+  resolutionOrigin?: string;
 }
 
 export interface OperatonFlowStatus {

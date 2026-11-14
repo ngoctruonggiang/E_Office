@@ -682,4 +682,31 @@ export class ProcedureService {
   async getHelperWorkflows() {
     return this.operatonService.getDefinitions('e-Office', true);
   }
+
+  /**
+   * 15. Helper: Available Organizations & Job Titles for Dynamic Actor rules.
+   */
+  async getOrgTitles(): Promise<{
+    departments: Array<{ id: string; name: string }>;
+    titles: string[];
+  }> {
+    const orgs = await this.prisma.organization.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const userTitles = await this.prisma.user.findMany({
+      where: { title: { not: null }, isActive: true },
+      select: { title: true },
+      distinct: ['title'],
+      orderBy: { title: 'asc' },
+    });
+
+    const titles = userTitles.map((u) => u.title!).filter(Boolean);
+
+    return {
+      departments: orgs,
+      titles,
+    };
+  }
 }

@@ -33,3 +33,4 @@ Xác minh 100% tính năng định danh và đồng bộ:
 1. Tất cả 6 Test Cases trên đều `PASS`.
 2. Không phát sinh lỗi compile trên cả Backend NestJS (`npm run build`) và Frontend Next.js (`npm run build`).
 3. Cập nhật ma trận truy vết [04-traceability-matrix.md](../../00-overview/04-traceability-matrix.md) từ `DRAFT` sang `VERIFIED`.
+

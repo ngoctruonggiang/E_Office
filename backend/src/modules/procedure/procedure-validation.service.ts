@@ -161,12 +161,22 @@ export class ProcedureValidationService {
 
     // ── VAL-PRC-07, VAL-PRC-08 & VAL-PRC-09: Actor Details Check ───
     for (const am of actorMappings) {
-      // VAL-PRC-07: Non-overridable step must have defaultUserId
-      if (!am.allowOverride && am.required && !am.defaultUserId) {
+      // VAL-PRC-07: Non-overridable step must have defaultUserId (if DIRECT_USER) or ruleConfig (if DYNAMIC_RULE)
+      const hasDirectUser = am.assigneeType === 'DIRECT_USER' && !!am.defaultUserId;
+      const hasDynamicRule = am.assigneeType === 'DYNAMIC_RULE' && !!am.ruleConfig;
+      if (!am.allowOverride && am.required && !hasDirectUser && !hasDynamicRule) {
         errors.push({
           code: 'VAL-PRC-07',
           field: `actorMappings.${am.taskDefinitionKey}`,
-          message: `Bước [${am.taskName || am.taskDefinitionKey}] bị khóa cố định (không cho sửa) nhưng chưa được gán người duyệt mặc định.`,
+          message: `Bước [${am.taskName || am.taskDefinitionKey}] bị khóa cố định (không cho sửa) nhưng chưa được gán người duyệt mặc định hoặc quy tắc động.`,
+        });
+      }
+
+      if (am.assigneeType === 'DYNAMIC_RULE' && !am.ruleConfig) {
+        errors.push({
+          code: 'VAL-PRC-07',
+          field: `actorMappings.${am.taskDefinitionKey}`,
+          message: `Bước [${am.taskName || am.taskDefinitionKey}] được chọn là Quy tắc động nhưng chưa có cấu hình quy tắc.`,
         });
       }
 

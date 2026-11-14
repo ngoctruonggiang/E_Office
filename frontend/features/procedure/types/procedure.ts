@@ -1,6 +1,19 @@
 export type ProcedureStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type ActorAssigneeType = 'DIRECT_USER' | 'DYNAMIC_RULE';
+export type DynamicActorRuleType = 'DIRECT_MANAGER' | 'DEPARTMENT_TITLE' | 'REQUESTOR_DEPT_TITLE';
+export type DynamicActorFallbackStrategy = 'PARENT_MANAGER' | 'SPECIFIC_USER' | 'BLOCK_SUBMISSION';
 export type VariableMappingType = 'NUMBER' | 'STRING' | 'BOOLEAN';
+
+export interface DynamicActorRuleConfig {
+  [key: string]: unknown;
+  ruleType: DynamicActorRuleType;
+  departmentId?: string;
+  departmentName?: string;
+  title?: string;
+  fallbackStrategy?: DynamicActorFallbackStrategy;
+  fallbackUserId?: string;
+  fallbackUserName?: string;
+}
 
 export interface UserDirectoryItem {
   id: string;
@@ -30,7 +43,7 @@ export interface ProcedureActorMapping {
     role?: string;
     isActive?: boolean;
   } | null;
-  ruleConfig?: Record<string, unknown> | null;
+  ruleConfig?: DynamicActorRuleConfig | null;
   allowOverride: boolean;
   required: boolean;
   isMultiInstance?: boolean;

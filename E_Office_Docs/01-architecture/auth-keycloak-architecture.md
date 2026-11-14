@@ -135,3 +135,4 @@ Nhằm đảm bảo môi trường dev linh hoạt và các integration test tr�
    - `AUTH_MODE=local`: Chỉ dùng tài khoản nội bộ (phục vụ chạy test offline không cần Docker Keycloak).
 2. **Tương thích mật khẩu cục bộ:**
    - Thuộc tính `User.passwordHash` được chuyển thành tùy chọn (`nullable`). User tạo từ Keycloak SSO sẽ có `passwordHash = null` và không thể bị tấn công brute-force vào endpoint login nội bộ.
+

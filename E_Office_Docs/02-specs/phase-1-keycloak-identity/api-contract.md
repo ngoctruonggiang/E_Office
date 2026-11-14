@@ -105,3 +105,4 @@ Khi nhận `accessToken` tại endpoint `/auth/sso/session`:
    - `iss == "http://localhost:8081/realms/e-office"` (hoặc biến môi trường `KEYCLOAK_ISSUER_URL`).
    - `exp > current_timestamp`.
 5. Đọc Payload & Claims để phục vụ đồng bộ dữ liệu.
+

@@ -76,3 +76,4 @@ Mục tiêu cốt lõi của **Phase 1** là:
 - [ ] **AC-IAM-03:** Backend xác thực chữ ký token từ Keycloak thông qua JWKS public certs và upsert thành công User vào CSDL e-Office kèm `keycloakSub`, `email`, `displayName`, `department`, `title`.
 - [ ] **AC-IAM-04:** Tại màn hình quản lý Thủ tục (`ProcedureBuilder`), tab "Người duyệt" hiển thị chính xác tên, phòng ban và chức danh của các tài khoản đồng bộ từ Keycloak.
 - [ ] **AC-IAM-05:** Chế độ Local Auth (`admin@gafood.local`) tiếp tục hoạt động bình thường mà không bị ảnh hưởng.
+

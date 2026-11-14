@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
+  DynamicActorRuleConfig,
   FormSummary,
   ProcedureListItem,
   ProcedureVersionDetail,
@@ -34,7 +35,7 @@ export interface UpdateProcedureVersionPayload {
     order: number;
     assigneeType: 'DIRECT_USER' | 'DYNAMIC_RULE';
     defaultUserId?: string | null;
-    ruleConfig?: Record<string, unknown> | null;
+    ruleConfig?: DynamicActorRuleConfig | Record<string, unknown> | null;
     allowOverride: boolean;
     required: boolean;
     isMultiInstance?: boolean;
@@ -157,4 +158,39 @@ export function fetchHelperForms(): Promise<FormSummary[]> {
 /** Helper: Available Workflows. */
 export function fetchHelperWorkflows(): Promise<WorkflowSummary[]> {
   return apiFetch<WorkflowSummary[]>('/procedures/helpers/workflows');
+}
+
+/** Helper: Available Departments and Job Titles for Dynamic Actor rules. */
+export function fetchOrgTitles(): Promise<{
+  departments: Array<{ id: string; name: string }>;
+  titles: string[];
+}> {
+  return apiFetch<{
+    departments: Array<{ id: string; name: string }>;
+    titles: string[];
+  }>('/procedures/helpers/org-titles');
+}
+
+/** Test resolve actors for a draft procedure version. */
+export function testResolveActors(
+  versionId: string,
+  requestorId?: string,
+): Promise<{
+  procedureVersionId: string;
+  requestorId: string;
+  resolvedActors: Array<{
+    taskDefinitionKey: string;
+    taskName: string;
+    assigneeType: string;
+    userId: string | null;
+    userName?: string;
+    resolutionOrigin: string;
+    fallbackApplied: boolean;
+    warning?: string;
+  }>;
+}> {
+  return apiFetch(`/procedures/versions/${encodeURIComponent(versionId)}/resolve-actors`, {
+    method: 'POST',
+    body: JSON.stringify({ requestorId }),
+  });
 }

@@ -221,3 +221,4 @@ export class KeycloakOidcProvider implements AuthProvider {
     return { user: subject, tokens };
   }
 }
+

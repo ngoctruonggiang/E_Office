@@ -452,6 +452,7 @@ export function ProcedureBuilder({ versionId }: ProcedureBuilderProps) {
 
         {activeTab === 3 && (
           <ActorMappingTab
+            versionId={versionId}
             workflowTasks={workflowTasks}
             mappings={actorMappings}
             onChange={setActorMappings}
