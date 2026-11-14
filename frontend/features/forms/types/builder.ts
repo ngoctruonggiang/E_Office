@@ -71,7 +71,12 @@ export function newField(type: FieldType, key: string): FieldDraft {
     selectMode: type === "SELECT" ? "SINGLE" : null,
     tableConfig: type === "TABLE" ? defaultTableConfig() : null,
     options:
-      type === "SELECT" ? [{ label: "Option 1", value: "option_1" }] : [],
+      type === "SELECT"
+        ? [
+            { label: "Lựa chọn 1", value: "lua_chon_1" },
+            { label: "Lựa chọn 2", value: "lua_chon_2" },
+          ]
+        : [],
     validations: [],
   };
 }

@@ -361,13 +361,35 @@ export function TableConfigEditor({
                     </Button>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {(col.options ?? []).map((opt, optIdx) => (
-                      <div key={optIdx} className="flex items-center gap-1.5">
+                      <div
+                        key={optIdx}
+                        className="rounded-md border border-border bg-surface p-2 shadow-2xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-muted-foreground">
+                            Lựa chọn #{optIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={(col.options ?? []).length <= 1}
+                            onClick={() => {
+                              const curOpts = (col.options ?? []).filter((_, i) => i !== optIdx);
+                              updateColumn(idx, { options: curOpts });
+                            }}
+                            className="rounded p-0.5 text-muted-foreground hover:bg-danger-subtle hover:text-danger disabled:opacity-25 transition-colors"
+                            title="Xóa lựa chọn"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+
+                        {/* Ô nhập tên hiển thị lựa chọn: Toàn chiều ngang */}
                         <Input
                           value={opt.label}
-                          placeholder="Tên mục hiển thị"
-                          className="h-7 flex-1 text-xs"
+                          placeholder="vd: Đạt tiêu chuẩn, Ưu tiên..."
+                          className="h-7 text-xs font-medium"
                           onChange={(e) => {
                             const newLbl = e.target.value;
                             const curOpts = [...(col.options ?? [])];
@@ -384,30 +406,24 @@ export function TableConfigEditor({
                             updateColumn(idx, { options: curOpts });
                           }}
                         />
-                        <Input
-                          value={opt.value}
-                          placeholder="Mã (value)"
-                          className="h-7 w-24 font-mono text-[11px]"
-                          onChange={(e) => {
-                            const curOpts = [...(col.options ?? [])];
-                            curOpts[optIdx] = {
-                              ...curOpts[optIdx],
-                              value: e.target.value.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase(),
-                            };
-                            updateColumn(idx, { options: curOpts });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          disabled={(col.options ?? []).length <= 1}
-                          onClick={() => {
-                            const curOpts = (col.options ?? []).filter((_, i) => i !== optIdx);
-                            updateColumn(idx, { options: curOpts });
-                          }}
-                          className="shrink-0 rounded p-1 text-muted-foreground hover:text-danger disabled:opacity-30"
-                        >
-                          <X size={12} />
-                        </button>
+
+                        {/* Ô nhập mã value */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">Mã:</span>
+                          <Input
+                            value={opt.value}
+                            placeholder={`opt_${optIdx + 1}`}
+                            className="h-6.5 font-mono text-[11px]"
+                            onChange={(e) => {
+                              const curOpts = [...(col.options ?? [])];
+                              curOpts[optIdx] = {
+                                ...curOpts[optIdx],
+                                value: e.target.value.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase(),
+                              };
+                              updateColumn(idx, { options: curOpts });
+                            }}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

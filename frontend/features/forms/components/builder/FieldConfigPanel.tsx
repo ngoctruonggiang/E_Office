@@ -212,11 +212,16 @@ function OptionsEditor({
   };
 
   return (
-    <div className="space-y-2.5 rounded-lg border border-border bg-surface-secondary/20 p-3">
+    <div className="space-y-3 rounded-lg border border-border bg-surface-secondary/20 p-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
-          {t("formBuilder.options")} ({field.options.length})
-        </p>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
+            {t("formBuilder.options")} ({field.options.length})
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Danh sách giá trị để người dùng lựa chọn
+          </p>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -239,71 +244,101 @@ function OptionsEditor({
         </Button>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {field.options.map((opt, i) => (
           <div
             key={i}
-            className="flex items-center gap-1.5 rounded-md border border-border bg-surface p-1.5 shadow-xs"
+            className="group rounded-lg border border-border bg-surface p-2.5 shadow-xs transition-colors hover:border-foreground/20 hover:shadow-sm"
           >
-            <Input
-              value={opt.label}
-              placeholder="Tên lựa chọn hiển thị"
-              className="h-8 flex-1 text-xs"
-              onChange={(e) => {
-                const newLabel = e.target.value;
-                const oldSlug = slugifyVietnamese(opt.label);
-                const isDefaultVal =
-                  !opt.value ||
-                  opt.value.startsWith("option_") ||
-                  opt.value === oldSlug;
-                const nextVal = isDefaultVal
-                  ? slugifyVietnamese(newLabel) || `option_${i + 1}`
-                  : opt.value;
-                set(i, { label: newLabel, value: nextVal });
-              }}
-            />
-            <Input
-              value={opt.value}
-              placeholder="Mã (value)"
-              className="h-8 w-28 font-mono text-xs"
-              onChange={(e) =>
-                set(i, {
-                  value: e.target.value.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase(),
-                })
-              }
-            />
-            <div className="flex items-center gap-0.5 shrink-0">
-              <button
-                type="button"
-                title="Di chuyển lên"
-                disabled={i === 0}
-                onClick={() => moveOption(i, -1)}
-                className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-foreground disabled:opacity-30"
-              >
-                <ArrowUp size={12} />
-              </button>
-              <button
-                type="button"
-                title="Di chuyển xuống"
-                disabled={i === field.options.length - 1}
-                onClick={() => moveOption(i, 1)}
-                className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-foreground disabled:opacity-30"
-              >
-                <ArrowDown size={12} />
-              </button>
-              <button
-                type="button"
-                title="Xóa lựa chọn"
-                disabled={field.options.length <= 1}
-                onClick={() =>
-                  onChange({
-                    options: field.options.filter((_, idx) => idx !== i),
+            {/* Header: Số thứ tự + Tiêu đề + Nút di chuyển / Xóa */}
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-[11px] font-bold text-primary">
+                  {i + 1}
+                </span>
+                <span className="text-xs font-semibold text-foreground">
+                  Lựa chọn {i + 1}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  title="Di chuyển lên"
+                  disabled={i === 0}
+                  onClick={() => moveOption(i, -1)}
+                  className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-foreground disabled:opacity-25 transition-colors"
+                >
+                  <ArrowUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  title="Di chuyển xuống"
+                  disabled={i === field.options.length - 1}
+                  onClick={() => moveOption(i, 1)}
+                  className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-foreground disabled:opacity-25 transition-colors"
+                >
+                  <ArrowDown size={13} />
+                </button>
+                <button
+                  type="button"
+                  title="Xóa lựa chọn"
+                  disabled={field.options.length <= 1}
+                  onClick={() =>
+                    onChange({
+                      options: field.options.filter((_, idx) => idx !== i),
+                    })
+                  }
+                  className="rounded p-1 text-muted-foreground hover:bg-danger-subtle hover:text-danger disabled:opacity-25 transition-colors"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Dòng 1: Tên hiển thị (Label) — Rộng rãi, toàn bộ chiều ngang */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-foreground">
+                Tên hiển thị (Label) *
+              </label>
+              <Input
+                value={opt.label}
+                placeholder="vd: Tốt, Khá, Trung bình, Nội bộ phòng ban..."
+                className="h-8.5 text-xs font-medium"
+                onChange={(e) => {
+                  const newLabel = e.target.value;
+                  const oldSlug = slugifyVietnamese(opt.label);
+                  const isDefaultVal =
+                    !opt.value ||
+                    opt.value.startsWith("option_") ||
+                    opt.value === oldSlug;
+                  const nextVal = isDefaultVal
+                    ? slugifyVietnamese(newLabel) || `option_${i + 1}`
+                    : opt.value;
+                  set(i, { label: newLabel, value: nextVal });
+                }}
+              />
+            </div>
+
+            {/* Dòng 2: Mã lưu trữ (Value) — font mono, tự động sinh từ label */}
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] text-muted-foreground">
+                  Mã giá trị (value)
+                </label>
+                <span className="text-[10px] text-muted-foreground/70 font-mono">
+                  Lưu vào dữ liệu form
+                </span>
+              </div>
+              <Input
+                value={opt.value}
+                placeholder={`option_${i + 1}`}
+                className="h-7.5 font-mono text-xs"
+                onChange={(e) =>
+                  set(i, {
+                    value: e.target.value.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase(),
                   })
                 }
-                className="rounded p-1 text-muted-foreground hover:bg-danger-subtle hover:text-danger disabled:opacity-30"
-              >
-                <Trash2 size={12} />
-              </button>
+              />
             </div>
           </div>
         ))}
