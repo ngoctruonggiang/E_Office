@@ -9,6 +9,21 @@ import { computeVisibleFieldKeys, isValueEmpty } from "./layout";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[+]?[\d\s().-]{6,}$/;
 
+export function isValidDateString(val: unknown): boolean {
+  if (typeof val !== "string" || !val.trim()) return false;
+  if (!Number.isNaN(Date.parse(val))) return true;
+  // Support DD/MM/YYYY or DD-MM-YYYY (Vietnamese / European formats)
+  const parts = val.trim().split(/[\/\-\.]/);
+  if (parts.length === 3) {
+    const [d, m, y] = parts.map(Number);
+    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900 && y <= 2100) {
+      const dt = new Date(y, m - 1, d);
+      return !Number.isNaN(dt.getTime());
+    }
+  }
+  return false;
+}
+
 export type TableCellErrors = Record<number, Record<string, string>>;
 
 function validateTableCell(
@@ -41,7 +56,7 @@ function validateTableCell(
       break;
     }
     case "DATE":
-      if (typeof val !== "string" || Number.isNaN(Date.parse(val))) {
+      if (!isValidDateString(val)) {
         return `${col.label} must be a valid date`;
       }
       break;
@@ -146,7 +161,7 @@ export function validateField(
       break;
     }
     case "DATE":
-      if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+      if (!isValidDateString(value)) {
         return `${field.label} must be a valid date`;
       }
       break;

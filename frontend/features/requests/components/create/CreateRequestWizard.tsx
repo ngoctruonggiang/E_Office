@@ -405,6 +405,22 @@ export function CreateRequestWizard() {
               <FormRenderer
                 form={form}
                 initialValues={values ?? undefined}
+                mainFiles={mainFiles}
+                secondaryFiles={secondaryFiles}
+                onAddFiles={(section, incoming) => {
+                  if (section === "MAIN") {
+                    setMainFiles((prev) => [...prev, ...incoming]);
+                  } else {
+                    setSecondaryFiles((prev) => [...prev, ...incoming]);
+                  }
+                }}
+                onRemoveFile={(section, idx) => {
+                  if (section === "MAIN") {
+                    setMainFiles((prev) => prev.filter((_, i) => i !== idx));
+                  } else {
+                    setSecondaryFiles((prev) => prev.filter((_, i) => i !== idx));
+                  }
+                }}
                 submitLabel="Tiếp tục: Đính kèm tài liệu & Ký số"
                 onSubmit={(_, raw) => {
                   setValues(raw);
