@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Plus, Search, X } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Search, X } from "lucide-react";
 import { useT, useLocale } from "@/components/providers/I18nProvider";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -65,6 +66,7 @@ export function RequestListScreen({ scope }: { scope: RequestScope }) {
   const router = useRouter();
 
   const list = useRequestList(scope);
+  const { user } = useAuth();
   const { forms } = useFormCategories();
   const { resolveName } = useUserDirectory();
 
@@ -310,11 +312,27 @@ export function RequestListScreen({ scope }: { scope: RequestScope }) {
                       <TD className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
                         {formatDateTime(r.createdAt, locale)}
                       </TD>
-                      <TD className="text-right">
-                        <ChevronRight
-                          size={15}
-                          className="inline-block text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
-                        />
+                      <TD className="text-right whitespace-nowrap">
+                        {r.createdById === user?.id &&
+                        (r.status === "REQUEST_CHANGES" || r.status === "DRAFT") ? (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/requests/${r.id}/edit`);
+                            }}
+                            className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/5"
+                          >
+                            <Pencil size={11} className="mr-1" />
+                            Sửa tiếp
+                          </Button>
+                        ) : (
+                          <ChevronRight
+                            size={15}
+                            className="inline-block text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                          />
+                        )}
                       </TD>
                     </TR>
                   ))}

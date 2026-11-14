@@ -34,7 +34,11 @@ import {
   useFormVersion,
 } from "@/features/forms/hooks/useFormDefinition";
 import type { FormValues, RequestValue } from "@/features/forms/types/form";
-import { fromRequestValues } from "@/features/forms/lib/values";
+import {
+  fromRequestValues,
+  toRequestValues,
+  filterVisibleValues,
+} from "@/features/forms/lib/values";
 import {
   downloadDocument,
   detachRequestDocument,
@@ -121,10 +125,21 @@ export function EditRequestScreen({ id }: { id: string }) {
     if (!detail) return false;
     setSaving(true);
     try {
-      // 1. Save form values if provided
-      if (currentValues.length > 0) {
-        await updateRequest(id, currentValues);
+      // 1. Gather current form values (from currentRaw if user typed, or from valueMap)
+      const rawValues = currentRaw ?? valueMap;
+      let eavPayload: RequestValue[] = [];
+      if (form) {
+        const visibleKeys = new Set(form.fields.map((f) => f.key));
+        const cleanRaw = filterVisibleValues(rawValues, visibleKeys);
+        eavPayload = toRequestValues(cleanRaw, visibleKeys);
+      } else {
+        eavPayload = toRequestValues(rawValues);
       }
+
+      if (eavPayload.length > 0) {
+        await updateRequest(id, eavPayload);
+      }
+
       // 2. Upload any staged main files
       for (const file of newMainFiles) {
         await uploadDocument(file, { requestId: id, section: "MAIN" });
@@ -141,7 +156,7 @@ export function EditRequestScreen({ id }: { id: string }) {
       if (!silent) {
         notify({
           title: "Đã lưu bản sửa đổi thành công",
-          message: "Các thông tin và tệp đính kèm đã được cập nhật.",
+          message: "Các thông tin và tệp đính kèm đã được lưu vào hệ thống.",
           kind: "success",
         });
       }
@@ -423,7 +438,7 @@ export function EditRequestScreen({ id }: { id: string }) {
             ) : (
               <FormRenderer
                 form={form}
-                initialValues={currentRaw ?? valueMap}
+                initialValues={valueMap}
                 mainFiles={newMainFiles}
                 secondaryFiles={newSecondaryFiles}
                 onAddFiles={(section, incoming) => {
@@ -444,9 +459,15 @@ export function EditRequestScreen({ id }: { id: string }) {
                   setCurrentRaw(raw);
                 }}
                 submitLabel="Tiếp tục: Quản lý tài liệu đính kèm"
-                onSubmit={(formattedVals, raw) => {
+                onSubmit={async (formattedVals, raw) => {
                   setCurrentValues(formattedVals);
                   setCurrentRaw(raw);
+                  try {
+                    await updateRequest(id, formattedVals);
+                    await reload();
+                  } catch (e) {
+                    console.error("Auto-save on next step failed", e);
+                  }
                   setActiveTab("documents");
                 }}
               />
