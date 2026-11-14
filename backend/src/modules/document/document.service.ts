@@ -51,9 +51,12 @@ export class DocumentService {
             'Only the requestor can manage main documents',
           );
         }
-        if (request.status !== RequestStatus.DRAFT) {
+        if (
+          request.status !== RequestStatus.DRAFT &&
+          request.status !== RequestStatus.REQUEST_CHANGES
+        ) {
           throw new ForbiddenException(
-            'Main documents can only be changed while the request is a draft',
+            'Main documents can only be changed while the request is a draft or awaiting revision',
           );
         }
       } else {
@@ -137,13 +140,14 @@ export class DocumentService {
     }
 
     // MAIN documents are locked once submitted — removable only in craft mode
-    // (DRAFT). SECONDARY documents may be removed by the creator or uploader at any time.
+    // (DRAFT) or when awaiting revision (REQUEST_CHANGES). SECONDARY documents may be removed by the creator or uploader at any time.
     if (
       link.section === RequestDocSection.MAIN &&
-      link.response.status !== RequestStatus.DRAFT
+      link.response.status !== RequestStatus.DRAFT &&
+      link.response.status !== RequestStatus.REQUEST_CHANGES
     ) {
       throw new ForbiddenException(
-        'Main documents can only be changed while the request is a draft',
+        'Main documents can only be changed while the request is a draft or awaiting revision',
       );
     }
 

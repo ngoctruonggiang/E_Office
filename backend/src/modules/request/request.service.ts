@@ -178,10 +178,15 @@ export class RequestService {
     if (request.createdById !== userId) {
       throw new ForbiddenException('You can only edit your own requests');
     }
-    // Values are editable only in "craft mode" — a DRAFT (e.g. a cloned draft
-    // before it is confirmed). Once submitted, the content is locked.
-    if (request.status !== RequestStatus.DRAFT) {
-      throw new BadRequestException('Only a draft request can be edited');
+    // Values are editable in "craft mode" (DRAFT) or when an approver has
+    // sent the request back for modifications (REQUEST_CHANGES).
+    if (
+      request.status !== RequestStatus.DRAFT &&
+      request.status !== RequestStatus.REQUEST_CHANGES
+    ) {
+      throw new BadRequestException(
+        'Only a draft or revision-pending request can be edited',
+      );
     }
 
     const mergedMap = new Map<string, unknown>(

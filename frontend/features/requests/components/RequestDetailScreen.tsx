@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSignature } from "lucide-react";
+import { FileSignature, Pencil } from "lucide-react";
 import { useT, useLocale } from "@/components/providers/I18nProvider";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useModal } from "@/components/providers/ModalProvider";
@@ -103,9 +103,9 @@ export function RequestDetailScreen({ id }: { id: string }) {
   const isOpen = isCraftMode || isInFlight;
   const awaitingRevision = detail?.status === "REQUEST_CHANGES" && isOwner;
 
-  const canEditForm = isCraftMode;
-  const canAddMain = isOwner && isCraftMode;
-  const canRemoveMain = isOwner && isCraftMode;
+  const canEditForm = isCraftMode || awaitingRevision;
+  const canAddMain = isOwner && (isCraftMode || awaitingRevision);
+  const canRemoveMain = isOwner && (isCraftMode || awaitingRevision);
   const canAddSecondary = isOwner || isAssignee || isViewer;
   const canRemoveSecondary = isOwner || isAssignee || user?.role === "admin";
   const canAddViewers =
@@ -379,7 +379,33 @@ export function RequestDetailScreen({ id }: { id: string }) {
         <InlineNotice
           kind="warning"
           title={t("detail.revisionNoticeTitle")}
-          description={t("detail.revisionNoticeDesc")}
+          description="Người duyệt đã yêu cầu cập nhật lại nội dung. Bạn có thể chỉnh sửa biểu mẫu hoặc bổ sung tài liệu đính kèm, sau đó bấm 'Nộp lại hồ sơ'."
+          action={
+            <div className="flex items-center gap-2">
+              {!editingForm ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setRightTab("overview");
+                    setEditingForm(true);
+                  }}
+                  className="bg-white/80 dark:bg-slate-900/80 shadow-sm"
+                >
+                  <Pencil size={13} className="mr-1.5" />
+                  {t("detail.editForm")}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEditingForm(false)}
+                >
+                  Đóng chế độ sửa
+                </Button>
+              )}
+            </div>
+          }
         />
       )}
 
@@ -480,9 +506,22 @@ export function RequestDetailScreen({ id }: { id: string }) {
               />
             ) : (
               <div className="rounded-lg border border-border bg-surface p-5">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t("detail.formData")}
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t("detail.formData")}
+                  </h2>
+                  {canEditForm && !editingForm && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingForm(true)}
+                      className="h-7 text-xs"
+                    >
+                      <Pencil size={12} className="mr-1" />
+                      {t("detail.editForm")}
+                    </Button>
+                  )}
+                </div>
                 <RequestFormData
                   requestId={detail.id}
                   formId={detail.formId}
@@ -513,9 +552,22 @@ export function RequestDetailScreen({ id }: { id: string }) {
                 <div className="divide-y divide-border-subtle">
                   {hasAnyDocument && (
                     <div className="p-4">
-                      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {t("detail.formData")}
-                      </h2>
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {t("detail.formData")}
+                        </h2>
+                        {canEditForm && !editingForm && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingForm(true)}
+                            className="h-7 text-xs"
+                          >
+                            <Pencil size={12} className="mr-1" />
+                            {t("detail.editForm")}
+                          </Button>
+                        )}
+                      </div>
                       <RequestFormData
                         requestId={detail.id}
                         formId={detail.formId}

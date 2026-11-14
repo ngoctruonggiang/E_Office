@@ -442,7 +442,7 @@ export function RequestActionBar({
     secondaryButton = (
       <Button variant="outline" disabled={busy} onClick={onEditForm}>
         <Pencil size={14} />
-        {t("common.edit")}
+        {t("detail.editForm")}
       </Button>
     );
   } else if (!awaitingRevision && actions.canRequestChanges) {
@@ -514,7 +514,7 @@ export function RequestActionBar({
   if (canEditForm && !isEditingForm && onEditForm && secondaryUsedBy !== "edit") {
     menuItems.push({
       id: "edit-form",
-      label: t("common.edit"),
+      label: t("detail.editForm"),
       icon: <Pencil size={14} />,
       disabled: busy,
       onSelect: onEditForm,
