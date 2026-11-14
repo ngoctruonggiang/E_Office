@@ -1,6 +1,6 @@
 # 04 — Ma trận Truy vết Yêu cầu (Traceability Matrix)
 
-**Trạng thái:** `APPROVED` (Phase 0, 2, 3, 4, 5 `VERIFIED`; chuẩn bị Phase 6)
+**Trạng thái:** `APPROVED` (Toàn bộ Phase 0 đến Phase 6 đã `VERIFIED`)
 
 Bảng này đảm bảo **mọi yêu cầu nghiệp vụ** đều đi từ Tài liệu đặc tả -> Code triển khai -> Kiểm thử tự động, không có tính năng "code chui" ngoài tài liệu và không có tài liệu "nằm trên giấy".
 
