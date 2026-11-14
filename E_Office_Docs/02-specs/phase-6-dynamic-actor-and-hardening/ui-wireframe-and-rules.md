@@ -71,3 +71,4 @@ Khi người dùng nộp đơn tại [CreateRequestWizard](file:///f:/Downloads/
    - Tên của Trưởng phòng mình kèm Chức danh và Phòng ban.
    - Dòng chú thích màu tím có biểu tượng ngôi sao: `✨ Tự động phân giải: Trưởng phòng trực tiếp của bạn`.
 2. Nếu bước duyệt cho phép `allowOverride: true`, người nộp đơn có thể bấm `[Đổi người duyệt]` để chọn nhân sự khác thay thế (ví dụ khi Trưởng phòng đang đi công tác dài ngày).
+

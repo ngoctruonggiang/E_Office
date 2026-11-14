@@ -75,17 +75,37 @@ E_Office_Docs/
 │   │   ├── api-contract.md                    # REST Endpoints (/procedures/*), Directory Helper & Version Pinning
 │   │   ├── ui-wireframe-and-rules.md          # Wireframe Danh mục & Trình thiết kế Thủ tục 4 bước chuẩn GAFOOD × RAMP
 │   │   └── test-plan.md                       # Kế hoạch kiểm thử Unit, E2E & Validation Engine (TC-PRC-*)
-│   └── phase-5-runtime-and-signing/           # [VERIFIED] Phase 5: Vận hành Run-time & Ký số PDF
-│       ├── prd.md                             # Mục tiêu, User Stories & Acceptance Criteria (REQ-RUN-01..04)
-│       ├── data-model.md                      # FormResponse, RequestActualActor, TaskProjection & SignatureField
-│       ├── flow-preview-and-override.md       # Thuật toán mô phỏng luồng BPMN, đánh giá rẽ nhánh & ADR-003 override
-│       ├── pdf-signing-integration.md         # Quy tắc ràng buộc "Ký trước - Duyệt sau", tích hợp hoàn thành task Operaton
-│       ├── revise-cancel-lifecycle.md         # Máy trạng thái vòng đời, đồng bộ Operaton & nhân bản (CLONE)
-│       ├── api-contract.md                    # REST Endpoints (/requests/*, /duty), DTOs & Error payloads
-│       ├── ui-wireframe-and-rules.md          # Wizard 5 bước tạo yêu cầu, Detail split-view & My Duties screen
-│       └── test-plan.md                       # Kế hoạch kiểm thử Unit, Integration & Scenarios (TC-RUN-*)
-└── 03-checklists/
-    ├── doc-review-checklist.md                # Cổng duyệt tài liệu trước khi code
-    └── code-compliance-checklist.md           # Cổng kiểm tra code khớp tài liệu trước khi đóng Phase
+│   ├── phase-5-runtime-and-signing/           # [VERIFIED] Phase 5: Vận hành Run-time & Ký số PDF
+│   │   ├── prd.md                             # Mục tiêu, User Stories & Acceptance Criteria (REQ-RUN-01..04)
+│   │   ├── data-model.md                      # FormResponse, RequestActualActor, TaskProjection & SignatureField
+│   │   ├── flow-preview-and-override.md       # Thuật toán mô phỏng luồng BPMN, đánh giá rẽ nhánh & ADR-003 override
+│   │   ├── pdf-signing-integration.md         # Quy tắc ràng buộc "Ký trước - Duyệt sau", tích hợp hoàn thành task Operaton
+│   │   ├── revise-cancel-lifecycle.md         # Máy trạng thái vòng đời, đồng bộ Operaton & nhân bản (CLONE)
+│   │   ├── api-contract.md                    # REST Endpoints (/requests/*, /duty), DTOs & Error payloads
+│   │   ├── ui-wireframe-and-rules.md          # Wizard 5 bước tạo yêu cầu, Detail split-view & My Duties screen
+│   │   └── test-plan.md                       # Kế hoạch kiểm thử Unit, Integration & Scenarios (TC-RUN-*)
+│   └── phase-6-dynamic-actor-and-hardening/   # [VERIFIED] Phase 6: Gán Tác nhân Động & Hardening
+│       ├── prd.md                             # Mục tiêu, User Stories & Acceptance Criteria (REQ-DYN-01)
+│       ├── data-model.md                      # JSON Schema ruleConfig trong ProcedureActorMapping
+│       ├── dynamic-actor-rules.md             # Thuật toán duyệt cây tổ chức, chống tự duyệt & fallback
+│       ├── api-contract.md                    # Endpoints (/procedures/helpers/org-titles, resolve-actors)
+│       ├── ui-wireframe-and-rules.md          # ActorMappingTab UI, badge màu & FlowPreview subtitle
+│       └── test-plan.md                       # Test cases TC-DYN-01..07
+├── 03-checklists/
+│   ├── doc-review-checklist.md                # Cổng duyệt tài liệu trước khi code
+│   └── code-compliance-checklist.md           # Cổng kiểm tra code khớp tài liệu trước khi đóng Phase
+├── 04-tech-lead-guide/                        # DÀNH CHO TRƯỞNG PHÒNG DEV / TECH LEAD
+│   ├── README.md                              # Tầm nhìn kiến trúc & Lộ trình đọc trong 30 phút
+│   ├── 01-system-architecture-blueprint.md    # Bản vẽ tổng thể 3 trụ cột, mạng lưới, bảo mật & luồng tích hợp
+│   ├── 02-core-engine-and-data-models.md      # Mô hình dữ liệu lai (EAV + Layout JSON), BPMN, Procedure & Dynamic Actor
+│   ├── 03-devops-deployment-and-security.md   # Hạ tầng Docker Compose, biến môi trường, backup/restore
+│   └── 04-engineering-handbook.md             # Chuẩn mực code, quy tắc Docs-First, checklist review PR
+└── 05-customer-guide/                         # DÀNH CHO KHÁCH HÀNG & NGƯỜI DÙNG DOANH NGHIỆP
+    ├── README.md                              # Hướng dẫn tra cứu theo vai trò sử dụng & từ điển nghiệp vụ
+    ├── 01-tong-quan-he-thong.md               # 4 khái niệm cốt lõi (Biểu mẫu, Quy trình, Thủ tục, Hồ sơ) & Giao diện
+    ├── 02-huong-dan-nguoi-nop-don.md          # Cẩm nang Nhân viên: Nộp đơn, xem luồng duyệt, đổi người duyệt, ký PDF
+    ├── 03-huong-dan-nguoi-phe-duyet.md        # Cẩm nang Quản lý: Duyệt hồ sơ, ký số điện tử trên PDF, trả về yêu cầu sửa
+    ├── 04-huong-dan-quan-tri-quy-trinh.md     # Cẩm nang Admin: Tạo phòng ban, dựng Form, vẽ BPMN, xuất bản Thủ tục
+    └── 05-cau-hoi-thuong-gap-faq.md           # Giải đáp 8 tình huống thắc mắc phổ biến nhất trong thực tế
 ```
 

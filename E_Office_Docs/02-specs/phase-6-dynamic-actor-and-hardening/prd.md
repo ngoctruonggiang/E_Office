@@ -86,3 +86,4 @@ Tuy nhiên, ở Phase 4 & 5, người duyệt mặc định trong Thủ tục đ
 - [ ] **AC-DYN-04:** Trường hợp phòng ban khuyết Manager, cơ chế Fallback `PARENT_MANAGER` tự động chuyển tiếp lên Manager của đơn vị cấp trên.
 - [ ] **AC-DYN-05:** Người nộp đơn có thể đổi người duyệt nếu bước duyệt bật `allowOverride: true`.
 - [ ] **AC-DYN-06:** 100% test case trong Test Plan pass, `npm run build` trên cả Backend và Frontend pass với 0 lỗi.
+

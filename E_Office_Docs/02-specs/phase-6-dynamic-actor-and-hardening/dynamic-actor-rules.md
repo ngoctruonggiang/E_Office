@@ -99,3 +99,4 @@ Khi người duyệt thực tế được giải quyết:
 1. Thông tin người duyệt được lưu vào bảng `request_actual_actors` với cờ `isDynamicResolved: true` và `resolvedRuleType: 'DIRECT_MANAGER'`.
 2. Khi phát lệnh khởi tạo tiến trình sang Operaton (`OperatonAdapterService.startProcessInstance`), ID người duyệt được đưa vào biến tiến trình `actor_<taskDefinitionKey>`.
 3. Operaton giao task cho đúng User Task Assignee tương ứng.
+

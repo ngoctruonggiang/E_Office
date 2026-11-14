@@ -33,3 +33,4 @@ Xác minh 100% tính chính xác và an toàn của cơ chế phân giải tác 
 1. 100% 7 Test Cases trên đều `PASS`.
 2. Toàn bộ tài liệu trong `E_Office_Docs/02-specs/phase-6-dynamic-actor-and-hardening/` đạt chuẩn kiểm soát tuân thủ.
 3. Cập nhật ma trận truy vết [04-traceability-matrix.md](../../00-overview/04-traceability-matrix.md) chuyển `REQ-DYN-01` sang `VERIFIED`.
+

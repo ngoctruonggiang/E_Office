@@ -106,3 +106,4 @@
 - **Phương thức:** `POST`
 - **Đường dẫn:** `/requests/preview-flow`
 - **Tích hợp mới:** Khi giải quyết danh sách `defaultActors` trả về cho Frontend, hệ thống tự động gọi qua `ActorResolverService` để thay thế các bước `assigneeType == 'DYNAMIC_RULE'` bằng User ID thực tế dựa theo `requestorId` của người đang tạo đơn.
+
