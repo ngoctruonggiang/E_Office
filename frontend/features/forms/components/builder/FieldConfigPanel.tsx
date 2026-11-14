@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2, X } from "lucide-react";
 import { useT } from "@/components/providers/I18nProvider";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -10,6 +10,7 @@ import type { FieldDraft } from "../../types/builder";
 import { VALIDATION_TYPES } from "../../types/builder";
 import type { SelectMode, ValidationType } from "../../types/form";
 import { TableConfigEditor } from "./TableConfigEditor";
+import { slugifyVietnamese } from "../../lib/slug";
 
 export type FieldConfigPanelProps = {
   field: FieldDraft | null;
@@ -48,20 +49,41 @@ export function FieldConfigPanel({
         <Input
           id="cfg-label"
           value={field.label}
-          onChange={(e) => patch({ label: e.target.value })}
+          placeholder="Nhập tên hiển thị của trường..."
+          onChange={(e) => {
+            const newLabel = e.target.value;
+            const oldSlug = slugifyVietnamese(field.label);
+            const isDefaultKey =
+              !field.key ||
+              field.key.startsWith("field_") ||
+              field.key.startsWith("table_") ||
+              field.key === oldSlug;
+
+            if (isDefaultKey && newLabel.trim()) {
+              const autoKey = slugifyVietnamese(newLabel) || field.key;
+              if (onRenameKey && autoKey !== field.key) {
+                onRenameKey(field.uid, field.key, autoKey);
+              }
+              patch({ label: newLabel, key: autoKey });
+            } else {
+              patch({ label: newLabel });
+            }
+          }}
         />
       </Field>
 
       <Field
         label={t("formBuilder.key")}
         htmlFor="cfg-key"
-        hint={t("formBuilder.keyHint")}
+        hint="Định danh dùng trong quy trình & tính toán dữ liệu (chỉ chữ, số, _)"
       >
         <Input
           id="cfg-key"
           value={field.key}
+          className="font-mono text-xs"
+          placeholder="vd: ho_va_ten, tong_tien"
           onChange={(e) => {
-            const nextKey = e.target.value.replace(/\s+/g, "_");
+            const nextKey = e.target.value.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase();
             if (onRenameKey) {
               onRenameKey(field.uid, field.key, nextKey);
             } else {
@@ -171,55 +193,112 @@ function OptionsEditor({
       ),
     });
 
+  const moveOption = (idx: number, delta: -1 | 1) => {
+    const targetIdx = idx + delta;
+    if (targetIdx < 0 || targetIdx >= field.options.length) return;
+    const nextOpts = [...field.options];
+    const [moved] = nextOpts.splice(idx, 1);
+    nextOpts.splice(targetIdx, 0, moved);
+    onChange({ options: nextOpts });
+  };
+
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">
-        {t("formBuilder.options")}
-      </p>
-      {field.options.map((opt, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <Input
-            value={opt.label}
-            placeholder={t("formBuilder.optionLabel")}
-            onChange={(e) => set(i, { label: e.target.value })}
-          />
-          <Input
-            value={opt.value}
-            placeholder={t("formBuilder.optionValue")}
-            onChange={(e) =>
-              set(i, { value: e.target.value.replace(/\s+/g, "_") })
-            }
-          />
-          <button
-            type="button"
-            onClick={() =>
-              onChange({ options: field.options.filter((_, idx) => idx !== i) })
-            }
-            className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-surface-secondary hover:text-danger"
+    <div className="space-y-2.5 rounded-lg border border-border bg-surface-secondary/20 p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
+          {t("formBuilder.options")} ({field.options.length})
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          onClick={() => {
+            const nextIdx = field.options.length + 1;
+            onChange({
+              options: [
+                ...field.options,
+                {
+                  label: `Lựa chọn ${nextIdx}`,
+                  value: `option_${nextIdx}`,
+                },
+              ],
+            });
+          }}
+        >
+          <Plus size={12} />
+          {t("formBuilder.addOption")}
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {field.options.map((opt, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-surface p-1.5 shadow-xs"
           >
-            <X size={15} />
-          </button>
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() =>
-          onChange({
-            options: [
-              ...field.options,
-              {
-                label: `Option ${field.options.length + 1}`,
-                value: `option_${field.options.length + 1}`,
-              },
-            ],
-          })
-        }
-      >
-        <Plus size={14} />
-        {t("formBuilder.addOption")}
-      </Button>
+            <Input
+              value={opt.label}
+              placeholder="Tên lựa chọn hiển thị"
+              className="h-8 flex-1 text-xs"
+              onChange={(e) => {
+                const newLabel = e.target.value;
+                const oldSlug = slugifyVietnamese(opt.label);
+                const isDefaultVal =
+                  !opt.value ||
+                  opt.value.startsWith("option_") ||
+                  opt.value === oldSlug;
+                const nextVal = isDefaultVal
+                  ? slugifyVietnamese(newLabel) || `option_${i + 1}`
+                  : opt.value;
+                set(i, { label: newLabel, value: nextVal });
+              }}
+            />
+            <Input
+              value={opt.value}
+              placeholder="Mã (value)"
+              className="h-8 w-28 font-mono text-xs"
+              onChange={(e) =>
+                set(i, {
+                  value: e.target.value.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase(),
+                })
+              }
+            />
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                title="Di chuyển lên"
+                disabled={i === 0}
+                onClick={() => moveOption(i, -1)}
+                className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-foreground disabled:opacity-30"
+              >
+                <ArrowUp size={12} />
+              </button>
+              <button
+                type="button"
+                title="Di chuyển xuống"
+                disabled={i === field.options.length - 1}
+                onClick={() => moveOption(i, 1)}
+                className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-foreground disabled:opacity-30"
+              >
+                <ArrowDown size={12} />
+              </button>
+              <button
+                type="button"
+                title="Xóa lựa chọn"
+                disabled={field.options.length <= 1}
+                onClick={() =>
+                  onChange({
+                    options: field.options.filter((_, idx) => idx !== i),
+                  })
+                }
+                className="rounded p-1 text-muted-foreground hover:bg-danger-subtle hover:text-danger disabled:opacity-30"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

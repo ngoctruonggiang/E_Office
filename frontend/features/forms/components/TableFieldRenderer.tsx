@@ -97,9 +97,9 @@ export function TableFieldRenderer({
                 <th
                   key={col.key}
                   style={col.width ? { width: `${col.width}px` } : undefined}
-                  className="px-2.5 py-2"
+                  className="px-2.5 py-2 text-xs font-semibold text-foreground"
                 >
-                  {col.label}
+                  {col.label?.trim() || col.key}
                   {!readOnly && col.required && (
                     <span className="ml-0.5 text-danger">*</span>
                   )}

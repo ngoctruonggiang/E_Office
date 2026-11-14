@@ -251,6 +251,7 @@ export function LayoutCanvas({
                                         key={span}
                                         type="button"
                                         disabled={span > maxAllowedSpan}
+                                        title={`Độ rộng: ${span}/12 dòng`}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           onSetItemColSpan(
@@ -263,7 +264,7 @@ export function LayoutCanvas({
                                         className={cn(
                                           "rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums transition-colors",
                                           item.colSpan === span
-                                            ? "bg-primary text-primary-foreground"
+                                            ? "bg-primary text-primary-foreground font-semibold"
                                             : "bg-surface-secondary text-muted-foreground hover:text-foreground disabled:opacity-30",
                                         )}
                                       >
@@ -275,6 +276,7 @@ export function LayoutCanvas({
                                   <div className="flex items-center gap-0.5">
                                     <button
                                       type="button"
+                                      title="Di chuyển sang trái"
                                       disabled={iIdx === 0}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -286,6 +288,7 @@ export function LayoutCanvas({
                                     </button>
                                     <button
                                       type="button"
+                                      title="Di chuyển sang phải"
                                       disabled={iIdx === row.items.length - 1}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -297,6 +300,7 @@ export function LayoutCanvas({
                                     </button>
                                     <button
                                       type="button"
+                                      title="Di chuyển lên hàng trên"
                                       disabled={rIdx === 0}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -308,6 +312,7 @@ export function LayoutCanvas({
                                     </button>
                                     <button
                                       type="button"
+                                      title="Di chuyển xuống hàng dưới"
                                       disabled={rIdx === sec.rows.length - 1}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -319,11 +324,12 @@ export function LayoutCanvas({
                                     </button>
                                     <button
                                       type="button"
+                                      title="Xóa trường này"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         onDeleteItem(sec.id, row.id, item.id);
                                       }}
-                                      className="rounded p-1 text-muted-foreground hover:bg-surface-secondary hover:text-danger"
+                                      className="rounded p-1 text-muted-foreground hover:bg-danger-subtle hover:text-danger"
                                     >
                                       <Trash2 size={12} />
                                     </button>

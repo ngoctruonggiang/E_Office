@@ -18,6 +18,14 @@ import {
 import { FieldConfigPanel } from "./FieldConfigPanel";
 import { VisibilityRuleEditor } from "./VisibilityRuleEditor";
 
+const SPAN_LABELS: Record<number, string> = {
+  3: "1/4 dòng",
+  4: "1/3 dòng",
+  6: "1/2 dòng",
+  8: "2/3 dòng",
+  12: "Toàn dòng",
+};
+
 export function LayoutInspectorPanel({
   selection,
   sections,
@@ -110,8 +118,11 @@ export function LayoutInspectorPanel({
     12 - row.items.reduce((sum, x) => sum + x.colSpan, 0) + item.colSpan;
 
   const colSpanPicker = (
-    <Field label={t("formBuilder.colSpan")}>
-      <div className="flex flex-wrap gap-1.5">
+    <Field
+      label={t("formBuilder.colSpan")}
+      hint="Độ rộng hiển thị của khối trên hệ lưới 12 cột"
+    >
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
         {COL_SPAN_OPTIONS.map((span) => (
           <button
             key={span}
@@ -121,13 +132,14 @@ export function LayoutInspectorPanel({
               onUpdateItem(sec.id, row.id, item.id, { colSpan: span })
             }
             className={cn(
-              "rounded border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
+              "flex flex-col items-center justify-center rounded-md border p-1 text-xs transition-colors",
               item.colSpan === span
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-surface text-foreground hover:bg-surface-secondary disabled:opacity-35",
+                ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "border-border bg-surface text-foreground hover:bg-surface-secondary disabled:opacity-30 disabled:cursor-not-allowed",
             )}
           >
-            {span}/12
+            <span className="font-bold tabular-nums text-xs">{span}/12</span>
+            <span className="text-[10px] opacity-80 whitespace-nowrap">{SPAN_LABELS[span]}</span>
           </button>
         ))}
       </div>

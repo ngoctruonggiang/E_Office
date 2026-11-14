@@ -26,6 +26,14 @@ const icons: Record<FieldType, React.ReactNode> = {
   TABLE: <Table2 size={15} />,
 };
 
+const fieldTypeDescriptions: Record<FieldType, string> = {
+  TEXT: "Văn bản, họ tên, lý do, ghi chú",
+  NUMBER: "Số tiền, số lượng, định mức",
+  DATE: "Ngày tháng, hạn hoàn thành",
+  SELECT: "Danh mục chọn 1 hoặc nhiều",
+  TABLE: "Bảng chi tiết lặp dòng, tính tổng",
+};
+
 export type LayoutBlockKind = "heading" | "divider" | "attachmentSlot";
 
 /** Left rail: field types, decorative/attachment layout blocks, and section outline. */
@@ -58,13 +66,16 @@ export function FieldTypePalette({
               key={type}
               type="button"
               onClick={() => onAddField(type)}
-              className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+              className="group flex w-full items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
             >
-              <span className="text-muted-foreground group-hover:text-primary">
+              <span className="mt-0.5 text-muted-foreground group-hover:text-primary">
                 {icons[type]}
               </span>
-              <span className="flex-1 text-left">{t(`fieldType.${type}`)}</span>
-              <Plus size={14} className="text-muted-foreground" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="font-medium text-xs text-foreground">{t(`fieldType.${type}`)}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{fieldTypeDescriptions[type]}</p>
+              </div>
+              <Plus size={14} className="mt-0.5 text-muted-foreground group-hover:text-primary" />
             </button>
           ))}
         </div>
@@ -78,31 +89,38 @@ export function FieldTypePalette({
           <button
             type="button"
             onClick={() => onAddBlock("heading")}
-            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+            className="group flex w-full items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
           >
-            <Heading size={15} className="text-muted-foreground group-hover:text-primary" />
-            <span className="flex-1 text-left">{t("formBuilder.headingBlock")}</span>
-            <Plus size={14} className="text-muted-foreground" />
+            <Heading size={15} className="mt-0.5 text-muted-foreground group-hover:text-primary" />
+            <div className="flex-1 text-left min-w-0">
+              <p className="font-medium text-xs text-foreground">{t("formBuilder.headingBlock")}</p>
+              <p className="text-[10px] text-muted-foreground">Tiêu đề phân cách nhóm nội dung</p>
+            </div>
+            <Plus size={14} className="mt-0.5 text-muted-foreground" />
           </button>
           <button
             type="button"
             onClick={() => onAddBlock("divider")}
-            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+            className="group flex w-full items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
           >
-            <Minus size={15} className="text-muted-foreground group-hover:text-primary" />
-            <span className="flex-1 text-left">{t("formBuilder.dividerBlock")}</span>
-            <Plus size={14} className="text-muted-foreground" />
+            <Minus size={15} className="mt-0.5 text-muted-foreground group-hover:text-primary" />
+            <div className="flex-1 text-left min-w-0">
+              <p className="font-medium text-xs text-foreground">{t("formBuilder.dividerBlock")}</p>
+              <p className="text-[10px] text-muted-foreground">Đường kẻ ngang phân vùng thông tin</p>
+            </div>
+            <Plus size={14} className="mt-0.5 text-muted-foreground" />
           </button>
           <button
             type="button"
             onClick={() => onAddBlock("attachmentSlot")}
-            className="group flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
+            className="group flex w-full items-start gap-2.5 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-surface-secondary"
           >
-            <Paperclip size={15} className="text-muted-foreground group-hover:text-primary" />
-            <span className="flex-1 text-left">
-              {t("formBuilder.attachmentSlotBlock")}
-            </span>
-            <Plus size={14} className="text-muted-foreground" />
+            <Paperclip size={15} className="mt-0.5 text-muted-foreground group-hover:text-primary" />
+            <div className="flex-1 text-left min-w-0">
+              <p className="font-medium text-xs text-foreground">{t("formBuilder.attachmentSlotBlock")}</p>
+              <p className="text-[10px] text-muted-foreground">Vị trí hướng dẫn đính kèm hồ sơ</p>
+            </div>
+            <Plus size={14} className="mt-0.5 text-muted-foreground" />
           </button>
         </div>
       </div>
